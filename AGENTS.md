@@ -14,7 +14,7 @@ Chọn và đọc SKILL.md phù hợp dưới plugins/vicoad/skills/ (đường 
 | Thiết kế DB/API/quyền/module | vicoad-design |
 | Thực hiện sửa code/migration/test | vicoad-implement |
 | Review diff, hồi quy, bảo mật | vicoad-review |
-| Nhật ký/nghiệm thu/báo cáo/hồ sơ TVGS | vicoad-tvgs |
+| Báo cáo ngày/nghiệm thu/báo cáo/hồ sơ TVGS | vicoad-tvgs |
 
 Yêu cầu sửa lỗi: debug rồi implement. Kết hợp tvgs với design/implement nếu cần; đừng kết thúc ở kế hoạch khi người dùng đã giao triển khai. Các tên $vicoad-* là cách gọi tắt trong yêu cầu; nếu plugin chưa cài, đọc file tương ứng trực tiếp theo bảng trên. Đây là routing bằng hướng dẫn, không tự đổi model.
 

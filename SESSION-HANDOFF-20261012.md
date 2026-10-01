@@ -11,10 +11,10 @@ Toàn bộ giao diện/thông báo đã đổi "Nhật ký"/"Nhật ký hiện t
 - Tài khoản thử: `duong` (Giám đốc — toàn quyền), mật khẩu hiện tại `Test12345` (đặt qua `node backend\scripts\set-user-password.js duong`, có thể đã bị đổi — nếu đăng nhập sai, đặt lại bằng script đó).
 - **MVP-03 có thể đang được một phiên Claude Code khác sửa song song** — đã thấy nhiều lần trong phiên trước (build MVP-03 tự tăng, có hàm mới lạ). Không đụng vào MVP-03 trừ khi được yêu cầu rõ.
 
-## ⚠️ Vấn đề vận hành quan trọng nhất: `web-public` không tự đồng bộ
-`start-dev.ps1` (chạy trong `run.bat`) lẽ ra tự chép `index.html`/`api.js`/`sw.js`/`js/*` từ thư mục gốc sang `web-public` (nơi thật sự phục vụ ở cổng 8082) — nhưng **không hoạt động**, nguyên nhân chưa xác định (đã loại trừ giả thuyết thiếu tệp làm dừng `Copy-Item`). Hệ quả: sửa mã gốc xong, `run.bat` báo "sẵn sàng", nhưng giao diện vẫn chạy bản cũ.
+## ✅ `web-public` tự đồng bộ — ĐÃ XÁC NHẬN HẾT LỖI (01/10, build 2026-10-14.4)
+Lỗi "`web-public` không tự đồng bộ" ghi ở các đợt trước (Đợt 17, 20) **đã được xác nhận HẾT** qua thử thật: chạy `.\run.bat` xong, `web-public\js\14-dang-nhap.js` đã đúng `APP_BUILD='2026-10-14.4'` khớp bản gốc. `start-dev.ps1` hiện chép `index.html`/`api.js`/`sw.js`/`manifest.webmanifest`/icon + toàn bộ `js/*` sang `web-public` vô điều kiện, ngay đầu script, mỗi lần chạy. **Không rõ chính xác lỗi cũ được sửa ở đâu/khi nào** — `start-dev.ps1` vừa trải qua một đợt viết lại lớn (tách cổng MVP-04 khỏi MVP-03: 3001/8080 → 3003/8082, an toàn hơn khi tắt tiến trình cũ) gộp chung nhiều lần sửa chưa từng commit, nên không tách được dòng nào là fix thật.
 
-**Quy trình bắt buộc sau mỗi lần sửa `index.html`/`api.js`/`sw.js`/bất kỳ tệp nào trong `js/`:**
+**Từ nay: chỉ sửa tệp gốc (`index.html`/`api.js`/`sw.js`/`js/*`), KHÔNG cần tự tay chép sang `web-public` nữa** — `.\run.bat` lo việc đó. Quy trình robocopy thủ công dưới đây chỉ giữ lại làm phương án dự phòng nếu lỗi tái phát (kiểm tra bằng cách so `APP_BUILD` hai bên sau khi chạy `run.bat`):
 ```powershell
 cd "D:\Setup\QLGS-HeThong\ChatGPT\VINA-SUPERVISION-MVP-04"
 robocopy . web-public index.html api.js sw.js favicon.ico manifest.webmanifest /R:1 /W:1
@@ -23,9 +23,8 @@ robocopy js web-public\js /E /R:1 /W:1
 Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
 .\run.bat
 ```
-Kiểm tra nhanh đã đồng bộ chưa: so `APP_BUILD` trong `web-public\js\14-dang-nhap.js` với tệp gốc `js\14-dang-nhap.js` — phải khớp.
 
-Nếu công cụ dòng lệnh phía Claude (Bash/PowerShell) hoạt động lại được (phiên trước bị lỗi suốt do một phiên Claude Code khác tranh chấp thư mục tạm của project MVP-02), Claude có thể tự chạy robocopy này thay vì nhờ người dùng.
+**Lưu ý cho Claude phiên sau:** nếu công cụ dòng lệnh của Claude vẫn lỗi (xem mục dưới), không tự chạy `.\run.bat` được — vẫn phải nhờ người dùng chạy sau khi Claude sửa tệp gốc, rồi người dùng tự kiểm tra qua trình duyệt (Claude không còn cần vừa sửa gốc vừa ghi đè `web-public` thủ công như các phiên trước nữa — đỡ tốn công, đỡ rủi ro lệch 2 bản).
 
 ## Việc đã làm xong (build 2026-10-09.1 → 2026-10-14.2) — xem chi tiết ở `CAP-NHAT-20260926.md` Đợt 16–24
 1. **`apiOnline()` (`js/01-core.js`) bỏ hẳn điều kiện `navigator.onLine`** — chỉ còn kiểm tra đã đăng nhập. Lý do: trên mạng Tailscale riêng (không có đường ra Internet công khai), `navigator.onLine` hay báo sai là offline, làm nhiều nút "Tải lại" (Tổng quan, Việc cần duyệt, Thùng rác) và việc lấy lại hồ sơ đã tải lên (`syncDocumentsFromApi`) không hoạt động dù đang có mạng. Đã tự kiểm bằng trình duyệt (Claude) — hoạt động đúng.
