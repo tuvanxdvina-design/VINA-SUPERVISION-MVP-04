@@ -2,7 +2,7 @@
 // ============================================================================
 // Tài khoản nhân sự · Quy trình duyệt có ý kiến · Việc cần duyệt (bản 2026-10-01)
 // ============================================================================
-const REVIEW_ACTION={SUBMIT:'Gửi duyệt',APPROVE:'Phê duyệt',REJECT:'Yêu cầu chỉnh sửa, bổ sung',ESCALATE:'Trình công ty',LOCK:'Khóa',REOPEN:'Mở khóa'};
+const REVIEW_ACTION={SUBMIT:'Gửi duyệt',CONFIRM:'Xác nhận (tự duyệt — người lập là Trưởng TVGS)',APPROVE:'Phê duyệt',REJECT:'Yêu cầu chỉnh sửa, bổ sung',ESCALATE:'Trình công ty',LOCK:'Khóa',REOPEN:'Mở khóa'};
 // Mục "Việc cần duyệt" chỉ dành cho người có quyền duyệt: Giám đốc/Admin, hoặc người có quyền "Duyệt"
 // ở ít nhất một công trình (Trưởng TVGS tại công trình đó). Người khác không thấy mục này.
 function isReviewer(){
@@ -42,8 +42,8 @@ function reviewItem(kind,id){
  if(kind==='documents'){const d=(db.docs||[]).find(v=>v.id===id);return {title:d?((d.code||'')+' — '+(d.name||'')):((fromInbox?.code||'')+' — '+(fromInbox?.title||'')),by:d?.createdBy||fromInbox?.created_by_name||'',at:d?.submittedAt||fromInbox?.submitted_at||'',local:d,projectId:d?.projectId||fromInbox?.project_id,last:lastOf(d),extra:''}}
  const l=(db.logs||[]).find(v=>v.serverId===id);const p=(db.projects||[]).find(v=>v.id===(l?.projectId||fromInbox?.project_id))||{};
  const date=l?.date||fromInbox?.log_date||'',shift=l?.shift||fromInbox?.shift||'';
- return {title:'Nhật ký '+progressDate(date)+' — '+shiftLabel(shift)+(p.name?' · '+p.name:''),by:l?.createdBy||fromInbox?.created_by_name||'',at:l?.submittedAt||fromInbox?.submitted_at||'',local:l,projectId:l?.projectId||fromInbox?.project_id,last:lastOf(l),
-  extra:l?'<p><b>Công việc:</b> '+esc(l.work||'')+'</p><p class="muted">Thời tiết: '+esc(l.weather||'—')+' · Nhân lực: '+Number(l.workers||0)+' · Máy: '+Number(l.machines||0)+(l.note?' · Ghi chú: '+esc(l.note):'')+'</p>'+((l.fileCount||l.photoCount)?'<button type="button" onclick="showLogFiles(\''+l.id+'\')">Xem tệp/ảnh ('+((l.fileCount||0)+(l.photoCount||0))+')</button>':''):'<p class="muted">'+esc(fromInbox?.title||'')+'</p>'};
+ return {title:'Báo cáo ngày '+progressDate(date)+' — '+shiftLabel(shift)+(p.name?' · '+p.name:''),by:l?.createdBy||fromInbox?.created_by_name||'',at:l?.submittedAt||fromInbox?.submitted_at||'',local:l,projectId:l?.projectId||fromInbox?.project_id,last:lastOf(l),
+  extra:l?'<p>'+(l.contractorUnit?'<b>Đơn vị tc:</b> '+esc(l.contractorUnit)+' · ':'')+(l.itemCategory?'<b>Hạng mục:</b> '+esc(l.itemCategory):'')+'</p><p><b>Công việc:</b> '+esc(l.work||'')+'</p><p class="muted">Thời tiết: '+esc(l.weather||'—')+' · Cbkt: '+Number(l.technicalStaffCount||0)+' · Nhân lực: '+resourceSummary(l.workerItems,l.workers)+' · Máy: '+resourceSummary(l.machineItems,l.machines)+(l.note?' · Ghi chú: '+esc(l.note):'')+'</p>'+(l.recommendation?'<p><b>Kiến nghị:</b> '+esc(l.recommendation)+'</p>':'')+((l.fileCount||l.photoCount)?'<button type="button" onclick="showLogFiles(\''+l.id+'\')">Xem tệp/ảnh ('+((l.fileCount||0)+(l.photoCount||0))+')</button>':''):'<p class="muted">'+esc(fromInbox?.title||'')+'</p>'};
 }
 function openReviewDecision(kind,id,preset){
  if(!apiOnline())return alert('Cần kết nối mạng để duyệt.');
@@ -76,10 +76,10 @@ async function submitReviewDecision(kind,id,action){
 
 // ---- Việc cần duyệt ----
 let inboxData=null;
-function inboxKindLabel(it){if(it.kind==='daily_logs')return 'Nhật ký';return it.doc_group==='REPORT'?((typeof REPORT_TYPES!=='undefined'&&REPORT_TYPES[it.report_type])||'Báo cáo'):'Hồ sơ'}
+function inboxKindLabel(it){if(it.kind==='daily_logs')return 'Báo cáo ngày';return it.doc_group==='REPORT'?((typeof REPORT_TYPES!=='undefined'&&REPORT_TYPES[it.report_type])||'Báo cáo'):'Hồ sơ'}
 function inboxContent(it){return it.kind==='daily_logs'?progressDate(it.log_date)+' — '+shiftLabel(it.shift)+(it.title?'<br><span class="muted">'+esc(it.title)+'</span>':''):esc(it.code||'')+' — '+esc(it.title||'')}
 async function loadInbox(){
- if(!getAuthToken()||!apiOnline()||window.__forcePw)return;
+ if(!getAuthToken()||window.__forcePw)return;
  try{inboxData=await apiRequest('/reviews/inbox')}
  catch(error){const el=document.getElementById('inboxBody');if(el)el.innerHTML='<p class="muted">Không tải được: '+esc(error.message)+'</p>';return}
  applyInboxNavVisibility();updateInboxBadge();renderInbox();
@@ -89,7 +89,7 @@ function updateInboxBadge(){
  const b=document.getElementById('inboxBadge');if(b)b.textContent=reviewer&&(c.to_review||0)+(c.returned||0)?String((c.to_review||0)+(c.returned||0)):'';
  const main=document.querySelector('main');let ban=document.getElementById('inboxBanner');
  const parts=[];
- if(reviewer&&c.to_review)parts.push('<b>'+c.to_review+'</b> '+(inboxData?.is_company?'việc trình công ty / công trình chưa có Trưởng TVGS':'báo cáo/hồ sơ/nhật ký đang chờ bạn phê duyệt'));
+ if(reviewer&&c.to_review)parts.push('<b>'+c.to_review+'</b> '+(inboxData?.is_company?'việc trình công ty / công trình chưa có Trưởng TVGS':'báo cáo/hồ sơ/báo cáo ngày đang chờ bạn phê duyệt'));
  if(c.returned)parts.push('<b>'+c.returned+'</b> bản của bạn bị yêu cầu chỉnh sửa, bổ sung');
  if(!parts.length||document.getElementById('inbox')?.classList.contains('active')){if(ban)ban.remove();return}
  // Người không có quyền duyệt không có mục "Việc cần duyệt" → mở danh sách bản bị trả lại trong cửa sổ

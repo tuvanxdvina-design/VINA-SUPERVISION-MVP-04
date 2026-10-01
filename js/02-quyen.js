@@ -20,7 +20,10 @@ function canManageAssignments(){
   const raw=String(db.role||'')+' '+String(authRole||'');const token=roleToken(authRole||db.role);
   return token==='ADMIN'||token==='DIRECTOR'||token==='GIAM DOC'||/ADMIN|DIRECTOR|GI[AÃ]M/.test(raw.toUpperCase());
 }
-function canEditProject(){return canManageAssignments()||roleToken(db.role)==='TRUONG TVGS'}
+// Sửa công trình (hợp đồng, gói thầu, bảng tiến độ...) theo vai trò TẠI công trình đang xem —
+// trước đây xét theo loại tài khoản chung (db.role) nên một người làm nhiều công trình với
+// chức danh khác nhau vẫn thấy nút Sửa ở công trình mình chỉ là GS viên. pid mặc định currentProjectId.
+function canEditProject(pid){return canManageAssignments()||canApproveIn(pid||currentProjectId)}
 function canEditDailyLog(){
   if(canManageAssignments())return true;
   return logProjectsForCreate().length>0||(db.logs||[]).some(l=>canEditLog(l));

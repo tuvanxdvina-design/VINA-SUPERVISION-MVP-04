@@ -2,7 +2,7 @@ function renderDashboard(){
 document.getElementById('kProjects').textContent=db.projects.length;document.getElementById('kLogs').textContent=db.logs.length;
 document.getElementById('kIssues').textContent=db.issues.filter(x=>x.status!=='ĐÃ ĐÓNG').length;document.getElementById('kDocs').textContent=db.docs.filter(x=>x.status==='APPROVED'||x.status==='LOCKED').length;
 let st={};db.projects.forEach(p=>st[p.status]=(st[p.status]||0)+1);document.getElementById('projectStats').innerHTML=Object.entries(st).map(([k,v])=>`<p>${esc(k)}: <b>${v}</b></p>`).join('')||'<span class="muted">&#x43;h&#x01b0;a c&#x00f3; d&#x1eef; li&#x1ec7;u</span>';
-document.getElementById('syncStats').innerHTML=`<p>&#x110;ang ch&#x1edd;: <b>${db.sync.filter(x=>x.status!=='CONFLICT').length}</b></p>${db.sync.some(x=>x.status==='CONFLICT')?`<p style="color:#b42318">Bị từ chối: <b>${db.sync.filter(x=>x.status==='CONFLICT').length}</b> (xem mục Công trình)</p>`:''}<p>Tr&#x1ea1;ng th&#x00e1;i m&#x1ea1;ng: <b>${navigator.onLine?'ONLINE':'OFFLINE'}</b></p>`;
+document.getElementById('syncStats').innerHTML=`<p>Bản ghi đang chờ: <b>${db.sync.filter(x=>x.status!=='CONFLICT').length}</b></p><p>Tệp/ảnh đang chờ trên thiết bị: <b id="offlineFileCount">...</b></p>${db.sync.some(x=>x.status==='CONFLICT')?`<p style="color:#b42318">Bị từ chối: <b>${db.sync.filter(x=>x.status==='CONFLICT').length}</b> (xem mục Công trình)</p>`:''}<p>Trạng thái mạng: <b>${navigator.onLine?'ONLINE':'OFFLINE'}</b></p>`;if(typeof refreshQueuedFileCount==='function')void refreshQueuedFileCount();
 document.getElementById('projectProgress').innerHTML=db.projects.length?db.projects.slice(0,8).map(p=>`<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(p.name)}</b><span>${Number(p.progress||0)}%</span></div><div class="progress-track"><span class="progress-fill" style="width:${Math.max(0,Math.min(100,Number(p.progress)||0))}%"></span></div><div class="muted">${esc(p.status||'')}</div></div>`).join(''):'<span class="muted">&#x43;h&#x01b0;a c&#x00f3; c&#x00f4;ng tr&#x00ec;nh</span>';
 document.getElementById('dashProjects').innerHTML=projectRows(db.projects.slice(0,20),true);
 }
@@ -46,7 +46,7 @@ function renderPortfolio(){
   +'<div class="card"><div class="muted">● Cần chú ý (vàng)</div><div class="kpi amber">'+sm.amber+'</div></div>'
   +'<div class="card"><div class="muted">● Bình thường (xanh)</div><div class="kpi green">'+sm.green+'</div></div></div>';
  h+='<div class="card" style="margin-top:14px"><h3>Tình trạng từng công trình <span class="muted" style="font-weight:400;font-size:13px">— tính đến '+progressDate(d.as_of)+'</span></h3>'
-  +(list.length?'<div style="overflow:auto"><table><thead><tr><th>Trạng thái</th><th>Công trình</th><th>Kế hoạch / Thực tế</th><th>Lệch</th><th>SPI</th><th>Dự báo xong · Hạn</th><th>Nhật ký gần nhất</th><th>Chờ duyệt</th><th>Cảnh báo</th></tr></thead><tbody>'
+  +(list.length?'<div style="overflow:auto"><table><thead><tr><th>Trạng thái</th><th>Công trình</th><th>Kế hoạch / Thực tế</th><th>Lệch</th><th>SPI</th><th>Dự báo xong · Hạn</th><th>Báo cáo ngày gần nhất</th><th>Chờ duyệt</th><th>Cảnh báo</th></tr></thead><tbody>'
   +list.map(p=>{const pl=p.plan||{};const al=(p.alerts||[]).filter(a=>a.severity!=='INFO');
     return '<tr class="clickable" onclick="openProjectDetail(\''+p.id+'\')"><td>'+healthChip(p.health)+'</td><td><b>'+esc(p.code||'')+'</b> — '+esc(p.name||'')+(pl.name?'<br><span class="muted" style="font-size:12px">'+esc(pl.name)+'</span>':'')+'</td>'
      +'<td>'+(p.plan?pctBar(pl.planned,pl.actual,p.health):'<span class="muted">Chưa có bảng tiến độ</span>')+'</td>'
@@ -63,7 +63,7 @@ function renderPortfolio(){
   +'<li><b>Tiến độ</b> (chuẩn EVM, như Primavera P6 / MS Project): SPI = % thực tế ÷ % kế hoạch. SPI &lt; '+d.thresholds.spiWarn+' hoặc chậm ≥ '+(-d.thresholds.varianceWarn)+' điểm % → cảnh báo; SPI &lt; '+d.thresholds.spiCrit+' hoặc chậm ≥ '+(-d.thresholds.varianceCrit)+' điểm → nghiêm trọng. Hạng mục quá hạn chưa xong → nghiêm trọng.</li>'
   +'<li><b>Dự báo hoàn thành</b> = thời gian kế hoạch ÷ SPI; trễ hơn hạn hợp đồng → nghiêm trọng.</li>'
   +'<li><b>Cập nhật thực tế</b>: quá '+d.thresholds.staleWarnDays+' ngày chưa cập nhật % thực tế → cảnh báo, quá '+d.thresholds.staleCritDays+' ngày → nghiêm trọng.</li>'
-  +'<li><b>Nhật ký hằng ngày</b> (như Procore Daily Log): trong '+d.thresholds.logWindowDays+' ngày qua (trừ Chủ nhật) thiếu ≥ '+d.thresholds.logMissWarn+' ngày → cảnh báo, ≥ '+d.thresholds.logMissCrit+' ngày → nghiêm trọng.</li>'
+  +'<li><b>Báo cáo ngày</b> (như Procore Daily Log): trong '+d.thresholds.logWindowDays+' ngày qua (trừ Chủ nhật) thiếu ≥ '+d.thresholds.logMissWarn+' ngày → cảnh báo, ≥ '+d.thresholds.logMissCrit+' ngày → nghiêm trọng.</li>'
   +'<li><b>Chờ duyệt quá hạn</b> (như Aconex workflow): quá '+d.thresholds.approvalWarnDays+' ngày → cảnh báo, quá '+d.thresholds.approvalCritDays+' ngày → nghiêm trọng. <b>Vấn đề chất lượng</b> quá hạn xử lý → nghiêm trọng.</li>'
   +'<li><b>Báo cáo định kỳ</b>: từ Thứ Tư chưa có báo cáo tuần trước, sau ngày 5 chưa có báo cáo tháng trước → cảnh báo. <b>Kế hoạch '+d.thresholds.lookaheadDays+' ngày tới</b> (look-ahead): hạng mục sắp bắt đầu → thông tin.</li>'
   +'</ul></details></div>';

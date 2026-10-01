@@ -5,7 +5,7 @@ async function unassignedAuthorsHtml(pid){
  try{
   const list=await apiRequest('/project-personnel/project/'+encodeURIComponent(pid)+'/unassigned-authors');
   if(!Array.isArray(list)||!list.length)return '';
-  return '<div class="notice" style="margin-top:12px"><b>Đã lập nhật ký/văn bản tại công trình nhưng hiện chưa được phân công</b> (không xem được công trình này):<table style="margin-top:6px"><tbody>'+list.map(u=>'<tr><td><b>'+esc(u.username)+'</b> · '+esc(ROLE_LABELS[u.role_name]||u.role_name)+'</td><td>'+u.record_count+' bản ghi, gần nhất '+progressDate(u.last_at)+'</td><td><button onclick="quickAssign(\''+pid+'\',\''+u.user_id+'\')">Phân công vào công trình</button></td></tr>').join('')+'</tbody></table></div>';
+  return '<div class="notice" style="margin-top:12px"><b>Đã lập báo cáo ngày/văn bản tại công trình nhưng hiện chưa được phân công</b> (không xem được công trình này):<table style="margin-top:6px"><tbody>'+list.map(u=>'<tr><td><b>'+esc(u.username)+'</b> · '+esc(ROLE_LABELS[u.role_name]||u.role_name)+'</td><td>'+u.record_count+' bản ghi, gần nhất '+progressDate(u.last_at)+'</td><td><button onclick="quickAssign(\''+pid+'\',\''+u.user_id+'\')">Phân công vào công trình</button></td></tr>').join('')+'</tbody></table></div>';
  }catch(_){return ''}
 }
 function openChangePassword(){
@@ -17,7 +17,7 @@ async function saveChangePassword(){
  try{await apiRequest('/auth/change-password',{method:'POST',body:JSON.stringify({old_password:o,new_password:n})});alert('Đã đổi mật khẩu. Hãy đăng nhập lại bằng mật khẩu mới.');if(typeof clearAuthSession==='function')clearAuthSession();location.reload()}
  catch(error){m.textContent=error.message}
 }
-const APP_BUILD='2026-10-08.1';
+const APP_BUILD='2026-10-14.4';
 async function checkServerMigrations(){
  if(!apiOnline())return;
  try{const base=API_BASE.replace(/\/api$/,'');const h=await (await fetch(base+'/health',{cache:'no-store'})).json();

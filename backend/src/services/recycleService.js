@@ -8,9 +8,9 @@ const pool = require('../utils/db');
 // Bảng con theo từng loại (đều ON DELETE CASCADE). nested: bảng cháu theo khóa của bảng con.
 const SPEC = {
   daily_logs: {
-    label: 'Nhật ký',
+    label: 'Báo cáo ngày',
     children: [['attachments', 'daily_log_id'], ['daily_log_files', 'daily_log_id'], ['daily_log_items', 'daily_log_id'], ['daily_log_materials', 'daily_log_id']],
-    title: r => `Nhật ký ${String(r.log_date).slice(8, 10)}/${String(r.log_date).slice(5, 7)}/${String(r.log_date).slice(0, 4)} — ${r.shift || ''}: ${String(r.work_summary || '').slice(0, 120)}`
+    title: r => `Báo cáo ngày ${String(r.log_date).slice(8, 10)}/${String(r.log_date).slice(5, 7)}/${String(r.log_date).slice(0, 4)} — ${r.shift || ''}: ${String(r.work_summary || '').slice(0, 120)}`
   },
   documents: {
     label: 'Hồ sơ / báo cáo',
@@ -112,7 +112,7 @@ async function restore(recycleId, actorId) {
     return { type: rec.entity_type, id: rec.entity_id, project_id: rec.project_id };
   } catch (e) {
     await client.query('ROLLBACK');
-    if (e.code === '23505') throw httpError(409, 'Không khôi phục được: đã có nội dung trùng (vd. nhật ký cùng ngày và ca, hoặc mã hồ sơ). Xóa/sửa bản trùng rồi thử lại.');
+    if (e.code === '23505') throw httpError(409, 'Không khôi phục được: đã có nội dung trùng (vd. báo cáo ngày cùng ngày và ca, hoặc mã hồ sơ). Xóa/sửa bản trùng rồi thử lại.');
     if (e.code === '23503') throw httpError(409, 'Không khôi phục được: công trình hoặc tài khoản liên quan không còn tồn tại.');
     throw e;
   } finally { client.release(); }

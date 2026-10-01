@@ -8,7 +8,7 @@ const DELETE_API={log:id=>'/daily-logs/'+encodeURIComponent(id),doc:id=>'/docume
 function deleteContent(kind,id,label,planProjectId){
  const k=v=>JSON.stringify(v).replace(/"/g,'&quot;');
  openModal('Xóa nội dung','<div class="review-note reject"><b>'+esc(label||'')+'</b><br>Nội dung sẽ chuyển vào <b>Thùng rác</b> (kèm ảnh, tệp, số liệu đi kèm) và biến mất khỏi danh sách, báo cáo, tổng quan. Có thể khôi phục lại trong Thùng rác.</div>'
-  +'<label for="delReason">Lý do xóa (bắt buộc)</label><textarea id="delReason" rows="3" maxlength="1000" placeholder="Ví dụ: lập trùng nhật ký ca 1 ngày 21/09; nhập nhầm công trình..."></textarea>'
+  +'<label for="delReason">Lý do xóa (bắt buộc)</label><textarea id="delReason" rows="3" maxlength="1000" placeholder="Ví dụ: lập trùng báo cáo ngày ca 1 ngày 21/09; nhập nhầm công trình..."></textarea>'
   +'<div class="toolbar"><button class="danger" onclick="confirmDeleteContent('+k(kind)+','+k(id)+','+k(planProjectId||'')+')">🗑 Chuyển vào Thùng rác</button><button onclick="closeModal()">Hủy</button></div><div id="delMsg" class="muted"></div>');
  setTimeout(()=>document.getElementById('delReason')?.focus(),50);
 }

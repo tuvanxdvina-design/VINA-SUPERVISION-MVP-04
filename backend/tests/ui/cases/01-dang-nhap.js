@@ -34,6 +34,6 @@ module.exports = function () {
     await page.waitForSelector('nav button[data-page="projects"]', { state: 'visible' });
     assert.equal(await page.locator('#buildBanner').count(), 0, 'không được có banner lệch phiên bản giữa index.html và máy chủ');
     assert.equal(await page.locator('#loginScreen').isVisible(), false, 'đăng nhập đúng thì màn hình đăng nhập phải biến mất');
-    assert.equal(await navVisible(page, 'daily'), true, 'vào được app: thấy mục Nhật ký trên thanh nav');
+    assert.equal(await navVisible(page, 'daily'), true, 'vào được app: thấy mục Báo cáo trên thanh nav');
   });
 };

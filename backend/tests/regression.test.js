@@ -1,7 +1,7 @@
 // ============================================================================
 // KIỂM THỬ HỒI QUY (dành cho người phát triển) — chạy trên CSDL THỬ RIÊNG, không đụng dữ liệu thật.
 // Yêu cầu: PostgreSQL truy cập được bằng psql; biến môi trường TEST_DB_URL, ví dụ
-//   TEST_DB_URL=postgres://vina_user:vina_password_123@127.0.0.1:5432/vina_regression
+//   TEST_DB_URL=postgres://vina_user:vina_password_123@127.0.0.1:5434/vina_regression
 // Chạy (tại backend): node --test tests/regression.test.js
 // Kịch bản: dựng CSDL từ schema gốc + migration CŨ, nạp dữ liệu lỗi giống thực tế
 // (nhân sự trùng tên NFD/khoảng trắng, nhật ký không có ca, mã ca MORNING, phân công Admin tự sinh),
@@ -173,6 +173,20 @@ test('hồ sơ: người không được phân công không xem được; tệp 
   assert.equal(b.status, 413);
 });
 
+test('công trình: hợp đồng lưu ở kho tệp tập trung, tải lại đúng và không tạo bản trùng', async () => {
+  const bytes = Buffer.from('%PDF-1.4 hop dong tvgs');
+  const path = `/projects/${P['001']}/files?category=TVGS_CONTRACT&name=${encodeURIComponent('hợp đồng TVGS.pdf')}`;
+  const first = await api('POST', path, bytes, 'admin', { 'Content-Type': 'application/pdf' });
+  assert.equal(first.status, 201);
+  const projects = (await api('GET', '/projects')).body;
+  const project = projects.find(p => p.id === P['001']);
+  assert.ok(project.files.some(f => f.id === first.body.id && f.category === 'TVGS_CONTRACT'));
+  const download = await api('GET', `/projects/${P['001']}/files/${first.body.id}`, null, 'thanhb');
+  assert.equal(Buffer.compare(download.body, bytes), 0);
+  assert.equal((await api('POST', path, bytes, 'admin', { 'Content-Type': 'application/pdf' })).status, 200);
+  assert.equal((await api('GET', `/projects/${P['001']}/files/${first.body.id}`, null, 'tuan')).status, 403);
+});
+
 test('tài khoản: tạo tài khoản mới đăng nhập được; Giám đốc không tạo được Admin; đổi mật khẩu', async () => {
   const c = await api('POST', '/users', { username: 'test.ql', full_name: 'Quản lý thử', password: 'matkhau123', role_name: 'MANAGER' });
   assert.equal(c.status, 201);
@@ -228,6 +242,17 @@ test('nhật ký: tài liệu kèm theo lên máy chủ, tải về đúng', asy
   assert.equal(f.status, 201);
   const dl = await api('GET', `/daily-logs/${id}/files/${f.body.id}`, null, 'hung');
   assert.equal(Buffer.compare(dl.body, bytes), 0);
+});
+
+test('nhật ký: ảnh nhị phân tối ưu được lưu tập trung và đọc lại', async () => {
+  const id = (await api('POST', '/daily-logs', { project_id: P['001'], log_date: '2026-11-01', shift: 'CA1', work_summary: 'Ảnh hiện trường' }, 'thanhb')).body.id;
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const file = await api('POST', `/daily-logs/${id}/attachments-binary?name=${encodeURIComponent('hiện trường.png')}`, png, 'thanhb', { 'Content-Type': 'image/png' });
+  assert.equal(file.status, 201);
+  const list = (await api('GET', `/daily-logs/${id}/attachments`, null, 'hung')).body;
+  assert.ok(list.some(x => x.id === file.body.id));
+  const content = (await api('GET', `/daily-logs/${id}/attachments/${file.body.id}`, null, 'hung')).body;
+  assert.ok(content.data_url.startsWith('data:image/png;base64,'));
 });
 
 test('nhân sự: nhân viên chỉ thấy quyền truy cập của chính mình', async () => {
@@ -650,4 +675,34 @@ test('đăng nhập sai: thông báo bằng tiếng Việt, hai trường hợp 
   assert.equal(khongCoNguoi.status, 401);
   assert.match(String(saiMatKhau.body.error), /Tên đăng nhập hoặc mật khẩu/, 'thông báo phải bằng tiếng Việt: ' + saiMatKhau.body.error);
   assert.equal(khongCoNguoi.body.error, saiMatKhau.body.error, 'sai mật khẩu và không có tài khoản phải cùng thông báo');
+});
+test('van ban chat luong: luu tap trung day du chi tiet bieu mau trong issues.details', async () => {
+  const details = {
+    documentType: 'MINUTES',
+    sourceType: 'Bien ban hien truong',
+    reference: 'BBHT-001',
+    projectName: 'Cong trinh A',
+    packageName: 'Goi thau 1',
+    documentDate: '2026-10-12',
+    startTime: '2026-10-12T08:00',
+    endTime: '2026-10-12T09:30',
+    conclusion: 'Dat yeu cau, tiep tuc theo doi',
+    participants: [{ group: 'TVGS', name: 'Nguyen Thanh B', role: 'GS vien' }],
+    signatures: { tvgs: 'Nguyen Thanh B' }
+  };
+  const created = await api('POST', '/issues', {
+    project_id: P['001'], issue_code: 'BBHT-001', title: 'Kiem tra cot tang 1',
+    description: 'Kiem tra kich thuoc va cot thep', severity: 'LOW', due_date: '2026-10-15',
+    source_type: 'Bien ban hien truong', details
+  }, 'thanhb');
+  assert.equal(created.status, 201);
+  const fetched = (await api('GET', `/issues?project_id=${P['001']}`)).body.find(x => x.id === created.body.id);
+  assert.equal(fetched.details.reference, 'BBHT-001');
+  assert.equal(fetched.details.participants[0].name, 'Nguyen Thanh B');
+  assert.equal(fetched.details.signatures.tvgs, 'Nguyen Thanh B');
+  const updated = await api('PATCH', `/issues/${created.body.id}`, {
+    details: { ...fetched.details, conclusion: 'Can bo sung anh hien truong' }
+  }, 'thanhb');
+  assert.equal(updated.status, 200);
+  assert.equal((await api('GET', `/issues/${created.body.id}`)).body.details.conclusion, 'Can bo sung anh hien truong');
 });

@@ -3,8 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VINA-SUPERVISION MVP-02</title>
+<title>VINA-SUPERVISION</title>
 <meta name="theme-color" content="#0f172a">
+<meta name="application-name" content="VINA-SUPERVISION">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="VINA">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./assets/app-icon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icon-180.png">
 <style>
 :root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e7ec;--pri:#155eef;--ok:#039855;--warn:#dc6803;--danger:#d92d20}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
@@ -19,6 +26,9 @@ main{flex:1;padding:22px;max-width:1500px;margin:auto;width:100%}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 1px 2px #1018280d}
 .kpi{font-size:28px;font-weight:700;margin-top:8px}.muted{color:var(--muted);font-size:13px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.report-hub-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:10px}
+.report-hub-tab{border:1px solid #d0d5dd;background:#fff;padding:8px 12px;border-radius:99px;cursor:pointer;font-size:13px}
+.report-hub-tab.active{background:var(--pri);border-color:var(--pri);color:#fff;font-weight:700}
 button,.btn{border:1px solid #d0d5dd;background:#fff;padding:9px 12px;border-radius:8px;cursor:pointer}
 .primary{background:var(--pri);border-color:var(--pri);color:#fff}.danger{color:var(--danger)}
 input,select,textarea{width:100%;padding:9px 10px;border:1px solid #d0d5dd;border-radius:8px;background:#fff}
@@ -37,17 +47,24 @@ table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px s
 .detail-meta .item b{display:block;font-size:12px;color:var(--muted);font-weight:600}
 @media(max-width:900px){aside{width:72px}aside span{display:none}.g4,.g3{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){aside{display:none}main{padding:12px}.g4,.g3,.row{grid-template-columns:1fr}.personnel-change-row{grid-template-columns:1fr!important}header{height:54px}}
 @media(max-width:600px){
-  header{padding:0 12px;gap:8px}header b{font-size:15px}header .muted{display:none}
+  header{padding:0 8px;gap:6px}header b{font-size:13px;line-height:1.1;max-width:92px;overflow-wrap:anywhere}header .muted{display:none}
+  header .status{font-size:10px;padding:5px 7px}header .logout-button{font-size:11px;padding:7px 8px;min-height:36px}
   .layout{display:block;min-height:calc(100dvh - 54px)}
   aside{display:block;position:fixed;top:auto;bottom:0;left:0;right:0;width:100%;height:auto;z-index:20;padding:4px 6px calc(4px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line);box-shadow:0 -2px 12px #10182818}
   nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
   nav button{display:flex;align-items:center;justify-content:center;gap:4px;flex:0 0 auto;width:auto;min-height:44px;white-space:nowrap;margin:0;padding:8px 10px;font-size:12px}
-  aside span{display:inline}
+  /* Điện thoại cầm dọc: chỉ hiện biểu tượng, ẩn tên để đỡ chật thanh điều hướng dưới. */
+  aside span{display:none}
   main{padding:12px 12px calc(82px + env(safe-area-inset-bottom));max-width:100%;min-width:0}
   .card{padding:12px;min-width:0}table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
   th,td{min-width:90px}button,.btn{min-height:44px}input,select,textarea{font-size:16px;min-height:44px}
   .modal{padding:8px}.modalbox{max-height:calc(100dvh - 16px);padding:14px}
   .participant-row{grid-template-columns:1fr!important}
+}
+/* Xoay ngang (man hinh rong hon trong khoang nay): hien lai ten canh bieu tuong. */
+@media(orientation:landscape) and (max-width:900px){
+  aside span{display:inline}
+  nav button{font-size:11px;padding:7px 8px}
 }
 
 .quality-form-sheet{border:1px solid #d0d5dd;padding:14px;background:#fff}.quality-form-head{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;border-bottom:1px solid #98a2b3;padding-bottom:10px}.quality-form-head img{width:62px;height:70px;object-fit:contain}.quality-form-head b{font-size:12px}.quality-form-head small,.quality-form-national span{display:block;font-size:10px;margin-top:4px}.quality-form-national{text-align:center;font-size:10px}.quality-form-title{text-align:center;border-bottom:1px solid #d0d5dd;padding:10px 0}.quality-form-title label{display:inline-block;margin-right:8px}.quality-form-title select{width:auto}.quality-form-title h3{margin:12px 0 6px;font-size:17px}.quality-form-title input{max-width:300px;text-align:center}.quality-form-block{border-bottom:1px solid #e4e7ec;padding:8px 0}.quality-form-block h4{margin:0 0 8px;font-size:14px}.quality-form-sheet .participant-row{grid-template-columns:1fr 1fr 1fr auto!important}.quality-form-sheet .quality-form-head img{background:#fff}@media(max-width:600px){.quality-form-head{grid-template-columns:auto 1fr}.quality-form-national{grid-column:1/-1}.quality-form-head img{width:48px;height:54px}.quality-form-sheet .participant-row{grid-template-columns:1fr!important}.quality-form-title h3{font-size:15px}}
@@ -121,11 +138,11 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
     <p class="muted">Đăng nhập hệ thống quản lý TVGS</p>
 
     <label for="loginUsername">Tên đăng nhập</label>
-    <input id="loginUsername" autocomplete="username">
+    <input id="loginUsername" autocomplete="username" onkeydown="if(event.key==='Enter'){event.preventDefault();vinaDoLogin()}">
 
     <label for="loginPassword">Mật khẩu</label>
     <input id="loginPassword" type="password"
-           autocomplete="current-password">
+           autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();vinaDoLogin()}">
 
     <button id="loginButton" class="primary" type="button"
             onclick="vinaDoLogin()">Đăng nhập</button>
@@ -134,30 +151,29 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
   </div>
 </div>
 
-<header><b>VINA-SUPERVISION</b><span class="muted" style="color:#d0d5dd">MVP-02</span><span id="net" class="status">Đang kiểm tra...</span><button class="logout-button" type="button" onclick="openChangePassword()">Đổi mật khẩu</button><button id="logoutButton" class="logout-button" type="button" onclick="vinaLogout()">Đăng xuất</button></header>
+<header><b>VINA-SUPERVISION</b><span class="muted" style="color:#d0d5dd">MVP-04</span><span id="hdrUser" class="muted" style="color:#d0d5dd"></span><span id="net" class="status">Đang kiểm tra...</span><button id="logoutButton" class="logout-button" type="button" onclick="vinaLogout()">Đăng xuất</button></header>
 <div class="layout">
 <aside><nav>
-<button class="active" data-page="dashboard">▦ <span>Tổng quan</span><b id="alertBadge" class="nav-badge"></b></button>
-<button data-page="inbox" style="display:none">✉ <span>Việc cần duyệt</span><b id="inboxBadge" class="nav-badge"></b></button>
-<button data-page="projects">▣ <span>Công trình</span></button>
-<button data-page="daily">☑ <span>Nhật ký</span></button>
-<button data-page="issues">⚠ <span>Vấn đề</span></button>
-<button data-page="docs">▤ <span>Hồ sơ</span></button>
-<button data-page="reports">▥ <span>Báo cáo</span></button>
-<button data-page="people">♙ <span>Nhân sự</span></button>
-<button data-page="audit">◴ <span>Audit Log</span></button>
-<button data-page="trash" style="display:none">🗑 <span>Thùng rác</span></button>
-<button data-page="settings">⚙ <span>Thiết lập</span></button>
+<button class="active" data-page="dashboard">📊 <span>Tổng quan</span><b id="alertBadge" class="nav-badge"></b></button>
+<button data-page="inbox" style="display:none">📥 <span>Việc cần duyệt</span><b id="inboxBadge" class="nav-badge"></b></button>
+<button data-page="projects">🏗️ <span>Công trình</span></button>
+<button data-page="issues">⚠️ <span>Vấn đề</span></button>
+<button data-page="docs">📁 <span>Hồ sơ</span></button>
+<button data-page="reports">📈 <span>Báo cáo</span></button>
+<button data-page="people">👥 <span>Nhân sự</span></button>
+<button data-page="audit">📋 <span>Audit Log</span></button>
+<button data-page="trash" style="display:none">🗑️ <span>Thùng rác</span></button>
+<button data-page="settings">⚙️ <span>Thiết lập</span></button>
 </nav></aside>
 <main>
 <section id="dashboard" class="page active">
-<div class="detail-header"><div><h2 id="pfTitle">Tổng quan tiến độ</h2><p class="muted" id="pfSub">Đèn trạng thái và cảnh báo tính tự động từ bảng tiến độ, nhật ký, việc chờ duyệt, vấn đề chất lượng và báo cáo định kỳ.</p></div>
+<div class="detail-header"><div><h2 id="pfTitle">Tổng quan tiến độ</h2><p class="muted" id="pfSub">Đèn trạng thái và cảnh báo tính tự động từ bảng tiến độ, báo cáo ngày, việc chờ duyệt, vấn đề chất lượng và báo cáo định kỳ.</p></div>
 <div class="toolbar" style="margin:0"><select id="pfFilter" onchange="renderPortfolio()"><option value="">Tất cả trạng thái</option><option value="RED">Đỏ — nghiêm trọng</option><option value="AMBER">Vàng — cần chú ý</option><option value="GREEN">Xanh — bình thường</option></select><button onclick="loadPortfolio(true)">↻ Tải lại</button></div></div>
 <div id="portfolioBox"><p class="muted">Đang tổng hợp...</p></div>
 <details style="margin-top:14px"><summary class="muted">Thống kê dữ liệu trên thiết bị này</summary>
 <div class="grid g4">
 <div class="card"><div class="muted">Công trình</div><div id="kProjects" class="kpi">0</div></div>
-<div class="card"><div class="muted">Nhật ký</div><div id="kLogs" class="kpi">0</div></div>
+<div class="card"><div class="muted">Báo cáo ngày</div><div id="kLogs" class="kpi">0</div></div>
 <div class="card"><div class="muted">Vấn đề mở</div><div id="kIssues" class="kpi">0</div></div>
 <div class="card"><div class="muted">Hồ sơ chính thức</div><div id="kDocs" class="kpi">0</div></div>
 </div>
@@ -175,6 +191,7 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 <div>
 <h2 id="pdTitle">Chi tiết công trình</h2>
 <p class="muted" id="pdSub"></p>
+<p class="muted" id="pdRole" style="margin-top:2px"></p>
 </div>
 <div class="toolbar" style="margin:0">
 <button onclick="goProjects()">← Về Công trình</button>
@@ -188,9 +205,9 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 </div>
 <div class="card" style="margin-top:14px"><div id="pdProgress"></div></div>
 <div class="grid g3" style="margin-top:14px">
-<div class="card"><h3>Nhật ký <button onclick="openProjectSection('daily')">Mở</button></h3><div id="pdLogs"></div></div>
+<div class="card"><h3>Báo cáo ngày <button onclick="openProjectSection('daily')">Mở</button></h3><div id="pdLogs"></div></div>
 <div class="card"><h3>Chất lượng công trình <button onclick="openProjectSection('issues')">Mở</button></h3><div id="pdIssues"></div></div>
-<div class="card"><h3>Hồ sơ <button onclick="openProjectSection('docs')">Mở</button></h3><div id="pdDocs"></div></div>
+<div class="card"><h3>Hồ sơ <button onclick="openDoc('',currentProjectId)">+ Khai báo hồ sơ mới</button> <button onclick="openProjectSection('docs')">Xem tất cả / quản lý</button></h3><div id="pdDocs"></div></div>
 </div>
 <div class="card" style="margin-top:14px"><h3>Nhân sự được phân công <button onclick="openProjectSection('people')">Mở</button></h3><div id="pdPeople"></div></div>
 </section>
@@ -204,7 +221,7 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 
 <section id="trash" class="page">
 <h2>Thùng rác</h2>
-<p class="muted">Nội dung đã xóa (nhật ký kèm ảnh/tệp, hồ sơ – báo cáo kèm tệp, văn bản chất lượng, bảng tiến độ kèm số liệu) được giữ nguyên ở đây và <b>khôi phục được</b>. Chỉ Admin được xóa vĩnh viễn; dòng vết (ai xóa, lúc nào, lý do) luôn được giữ.</p>
+<p class="muted">Nội dung đã xóa (báo cáo ngày kèm ảnh/tệp, hồ sơ – báo cáo kèm tệp, văn bản chất lượng, bảng tiến độ kèm số liệu) được giữ nguyên ở đây và <b>khôi phục được</b>. Chỉ Admin được xóa vĩnh viễn; dòng vết (ai xóa, lúc nào, lý do) luôn được giữ.</p>
 <div class="toolbar"><select id="trashFilter" onchange="renderTrash()"><option value="ACTIVE">Đang trong thùng rác</option><option value="ALL">Tất cả (kể cả đã khôi phục / xóa vĩnh viễn)</option></select><button onclick="loadTrash()">↻ Tải lại</button></div>
 <div id="trashBody"><p class="muted">Đang tải...</p></div>
 </section>
@@ -216,9 +233,10 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 </section>
 
 <section id="daily" class="page">
-<h2>Nhật ký hiện trường</h2>
-<div class="toolbar"><button id="newLogButton" class="primary" onclick="openLog()">+ Lập nhật ký</button><select id="logProject" onchange="renderLogs()"></select></div>
-<div class="card"><div class="notice">Mất mạng vẫn lập được nhật ký: dữ liệu lưu tạm trên thiết bị và tự đưa lên máy chủ khi có mạng. Tiến độ cập nhật ở Chi tiết công trình → Tiến độ thi công.</div><div id="logsTable" style="margin-top:12px"></div></div>
+<div class="report-hub-tabs"><button type="button" class="report-hub-tab" data-tab="daily" onclick="goPage('daily')">📝 Báo cáo ngày (cá nhân)</button><button type="button" class="report-hub-tab" data-tab="reports" onclick="goPage('reports')">📈 Báo cáo tổng hợp (ngày · tuần · tháng · hoàn thành)</button></div>
+<h2>Báo cáo ngày (cá nhân)</h2>
+<div class="toolbar"><button id="newLogButton" class="primary" onclick="openLog()">+ Lập báo cáo ngày</button><select id="logProject" onchange="renderLogs()"></select><select id="logAuthor" onchange="renderLogs()"><option value="">Tất cả người lập</option></select></div>
+<div class="card"><div class="notice">Mất mạng vẫn lập được báo cáo ngày: dữ liệu lưu tạm trên thiết bị và tự đưa lên máy chủ khi có mạng. Tiến độ cập nhật ở Chi tiết công trình → Tiến độ thi công. Cuối ngày, trưởng nhóm vào tab "Báo cáo tổng hợp" để tổng hợp các báo cáo cá nhân thành một báo cáo ngày chung.</div><div id="logsTable" style="margin-top:12px"></div></div>
 </section>
 
 <section id="issues" class="page">
@@ -235,9 +253,10 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 </section>
 
 <section id="reports" class="page">
-<h2>Báo cáo tư vấn giám sát</h2>
-<div class="notice">Báo cáo ngày / tuần / tháng / hoàn thành: số liệu tổng hợp tự động từ nhật ký, văn bản chất lượng, hồ sơ và bảng tiến độ; người lập bổ sung nhận xét, kiến nghị rồi gửi duyệt. Báo cáo lưu trên máy chủ, in / xuất PDF theo mẫu công ty.</div>
-<div class="toolbar"><button id="newReportButton" class="primary" onclick="openReport()">+ Lập báo cáo</button><select id="reportProject" onchange="renderReports()"></select><select id="reportType" onchange="renderReports()"><option value="">Tất cả loại</option><option value="DAILY">Báo cáo ngày</option><option value="WEEKLY">Báo cáo tuần</option><option value="MONTHLY">Báo cáo tháng</option><option value="FINAL">Báo cáo hoàn thành</option></select></div>
+<div class="report-hub-tabs"><button type="button" class="report-hub-tab" data-tab="daily" onclick="goPage('daily')">📝 Báo cáo ngày (cá nhân)</button><button type="button" class="report-hub-tab" data-tab="reports" onclick="goPage('reports')">📈 Báo cáo tổng hợp (ngày · tuần · tháng · hoàn thành)</button></div>
+<h2>Báo cáo tổng hợp</h2>
+<div class="notice">Tổng hợp ngày / Báo cáo tuần / tháng / hoàn thành: số liệu tổng hợp tự động từ Báo cáo ngày của từng giám sát viên, văn bản chất lượng, hồ sơ và bảng tiến độ; người lập bổ sung nhận xét, kiến nghị rồi gửi duyệt. Báo cáo lưu trên máy chủ, in / xuất PDF theo mẫu công ty.</div>
+<div class="toolbar"><button id="newReportButton" class="primary" onclick="openReport()">+ Lập báo cáo</button><select id="reportProject" onchange="renderReports()"></select><select id="reportType" onchange="renderReports()"><option value="">Tất cả loại</option><option value="DAILY">Tổng hợp ngày</option><option value="WEEKLY">Báo cáo tuần</option><option value="MONTHLY">Báo cáo tháng</option><option value="FINAL">Báo cáo hoàn thành</option></select></div>
 <div class="card"><div id="reportsTable"></div></div>
 </section>
 
@@ -273,7 +292,8 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 </div>
 <div class="grid g3">
 <div class="card"><h3>Vai trò hiện tại</h3><select id="role" disabled><option>Giám đốc</option><option>Admin</option><option>TVGS trưởng</option><option>GS viên</option><option>Văn phòng</option><option>Chủ đầu tư</option></select><p class="muted">Vai trò được cấp theo tài khoản đăng nhập.</p></div>
-<div class="card"><h3>Phiên làm việc</h3><p class="muted">Nút Đăng xuất luôn có sẵn ở đầu trang.</p></div>
+<div class="card"><h3>Phiên làm việc</h3><p class="muted">Nút Đăng xuất luôn có sẵn ở đầu trang.</p><button type="button" onclick="openChangePassword()">Đổi mật khẩu</button></div>
+<div class="card"><h3>Ứng dụng trên thiết bị</h3><button id="installAppButton" class="primary" type="button" onclick="installVinaApp()">Cài ứng dụng</button><p id="installAppStatus" class="muted"></p></div>
 <div class="card"><h3>Dữ liệu</h3><button onclick="exportJSON()">Xuất JSON</button> <button onclick="clearAll()" class="danger">Xóa dữ liệu cục bộ</button></div>
 <div class="card"><h3>Quy tắc hồ sơ</h3><p>Không sửa đè hồ sơ đã khóa. Mở khóa phải tạo phiên bản mới và ghi Audit Log.</p></div>
 </div>
@@ -281,6 +301,7 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 </main></div>
 
 <div id="modal" class="modal"><div class="modalbox"><div style="display:flex;justify-content:space-between;align-items:center"><h3 id="mtitle"></h3><button onclick="closeModal()">✕</button></div><div id="mbody"></div></div></div>
+<script src="./js/00-tep-ngoai-tuyen.js"></script>
 <script src="./js/01-core.js"></script>
 <script src="./js/02-quyen.js"></script>
 <script src="./js/03-cong-trinh.js"></script>
@@ -303,6 +324,7 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 <script src="./js/glue-4-tinh-nang-2.js"></script>
 <script src="./js/05-glue-cuoi.js"></script>
 <script src="./js/glue-6-tinh-nang-3.js"></script>
+<script src="./js/15-cai-dat-ung-dung.js"></script>
 
 </body>
 </html>

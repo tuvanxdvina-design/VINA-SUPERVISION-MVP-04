@@ -1,0 +1,9 @@
+Where-Object : The term 'unsetenv.LocalPort' is not recognized as the name of a cmdlet, function, script file, or 
+operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try 
+again.
+At line:1 char:68
++ ... yContinue | Where-Object {unsetenv.LocalPort -in 3001,3101,3102,3103, ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (unsetenv.LocalPort:String) [Where-Object], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException,Microsoft.PowerShell.Commands.WhereObjectCommand
+ 

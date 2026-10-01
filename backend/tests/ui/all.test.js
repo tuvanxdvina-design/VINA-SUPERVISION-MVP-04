@@ -20,3 +20,6 @@ require('./cases/06-ho-so')();
 require('./cases/07-quyen-theo-chuc-danh')();
 require('./cases/08-thung-rac')();
 require('./cases/09-ha-tang-js')();
+require('./cases/10-mobile')();
+require('./cases/11-pwa')();
+require('./cases/12-offline-files')();

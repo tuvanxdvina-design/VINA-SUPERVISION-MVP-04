@@ -17,6 +17,7 @@ backend/uploads/
 node_modules/
 web-public/
 runtime-logs/
+dist/
 backend/runtime.*.log
 *.log
 backend/tests/last-regression.txt

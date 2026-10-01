@@ -27,13 +27,13 @@ function viewDoc(docId){
   +'<hr><h4>Tài liệu tải lên</h4>'+docFileLinks(x)+'</div><div class="toolbar">'+(canModifyDoc(x)?'<button class="primary" onclick="closeModal();openDoc(\''+x.id+'\')">Sửa hồ sơ</button>':'')+flow.map(([a,t])=>'<button onclick="docWorkflow(\''+x.id+'\',\''+a+'\')">'+t+'</button>').join('')+deleteBtn('doc',x.serverId,x.projectId,(x.code||'')+' '+(x.name||''))+'</div>');
 }
 function upsertLocalDoc(doc){db.docs=db.docs||[];const i=db.docs.findIndex(x=>x.id===doc.id);if(i>=0)db.docs[i]=doc;else db.docs.unshift(doc)}
-function openDoc(docId=''){
+function openDoc(docId='',forceProjectId=''){
  if(!apiOnline())return alert('Cần kết nối mạng để tạo/sửa hồ sơ (tệp được lưu trên máy chủ để mọi tài khoản cùng xem).');
  const x=db.docs.find(v=>v.id===docId)||{};const edit=!!docId;
  if(edit&&!canModifyDoc(x))return alert('Bạn không có quyền sửa hồ sơ này.');
  const projects=edit?(db.projects||[]).filter(p=>p.id===x.projectId):serverProjects().filter(p=>canCreateDocIn(p.id));
  if(!projects.length)return alert('Tài khoản chưa được cấp quyền "Thêm" hồ sơ ở công trình nào.');
- const d=x.details||{};const cur=document.getElementById('docProject')?.value;
+ const d=x.details||{};const cur=forceProjectId||document.getElementById('docProject')?.value;
  const slotHtml=(slots,cls)=>slots.map(([label,id,accept,multi])=>'<div class="full '+cls+'"><label>'+esc(label)+'</label><input id="'+id+'" data-category="'+esc(label)+'" type="file" accept="'+accept+'"'+(multi?' multiple':'')+'></div>').join('');
  openModal(edit?'Sửa hồ sơ '+(x.code||''):'Tạo hồ sơ',(edit?reviewBlockHtml(x,{history:false}):'')+'<div class="row">'
   +'<div><label>Công trình</label><select id="dproj">'+projects.map(p=>'<option value="'+p.id+'"'+((x.projectId||cur)===p.id?' selected':'')+'>'+esc(p.code)+' - '+esc(p.name)+'</option>').join('')+'</select></div>'
@@ -41,7 +41,7 @@ function openDoc(docId=''){
   +'<div><label>Loại hồ sơ</label><select id="dtype">'+DOC_TYPES.map(([c,t])=>'<option value="'+c+'">'+t+'</option>').join('')+'</select></div>'
   +'<div><label>Mã hồ sơ</label><input value="'+esc(x.code||'Máy chủ tự cấp khi lưu')+'" disabled></div>'
   +'<div class="full"><label>Tên hồ sơ</label><input id="dname" maxlength="255" value="'+esc(x.name||'')+'" placeholder="Ví dụ: Hồ sơ pháp lý công trình"></div>'
-  +'<div class="full report-only"><h4>Thông tin báo cáo</h4><div class="row"><div><label>Loại báo cáo</label><select id="dreportType"><option value="DAILY">Ngày</option><option value="WEEKLY">Tuần</option><option value="MONTHLY">Tháng</option><option value="FINAL">Hoàn thành</option></select></div><div><label>Kỳ báo cáo</label><input id="dperiod" type="month" value="'+esc(d.period||'')+'"></div><div><label>Tiến độ kế hoạch (%)</label><input id="dplanned" type="number" min="0" max="100" value="'+(d.plannedProgress??'')+'"></div><div><label>Tiến độ thực tế (%)</label><input id="dactual" type="number" min="0" max="100" value="'+(d.actualProgress??'')+'"></div><div><label>Nhân lực</label><input id="dmanpower" type="number" min="0" value="'+(d.manpower??'')+'"></div><div><label>Khối lượng hoàn thành</label><input id="dvolume" value="'+esc(d.volumeCompleted||'')+'"></div><div><label>Đánh giá tiến độ</label><select id="dschedule"><option value="ON_TRACK">Đúng tiến độ</option><option value="AHEAD">Nhanh hơn</option><option value="DELAYED">Chậm tiến độ</option></select></div></div><button type="button" onclick="fillReportFromLogs()">Tổng hợp từ nhật ký</button></div>'
+  +'<div class="full report-only"><h4>Thông tin báo cáo</h4><div class="row"><div><label>Loại báo cáo</label><select id="dreportType"><option value="DAILY">Ngày</option><option value="WEEKLY">Tuần</option><option value="MONTHLY">Tháng</option><option value="FINAL">Hoàn thành</option></select></div><div><label>Kỳ báo cáo</label><input id="dperiod" type="month" value="'+esc(d.period||'')+'"></div><div><label>Tiến độ kế hoạch (%)</label><input id="dplanned" type="number" min="0" max="100" value="'+(d.plannedProgress??'')+'"></div><div><label>Tiến độ thực tế (%)</label><input id="dactual" type="number" min="0" max="100" value="'+(d.actualProgress??'')+'"></div><div><label>Nhân lực</label><input id="dmanpower" type="number" min="0" value="'+(d.manpower??'')+'"></div><div><label>Khối lượng hoàn thành</label><input id="dvolume" value="'+esc(d.volumeCompleted||'')+'"></div><div><label>Đánh giá tiến độ</label><select id="dschedule"><option value="ON_TRACK">Đúng tiến độ</option><option value="AHEAD">Nhanh hơn</option><option value="DELAYED">Chậm tiến độ</option></select></div></div><button type="button" onclick="fillReportFromLogs()">Tổng hợp từ báo cáo ngày</button></div>'
   +'<div class="full legal-only"><label>Biến động nhân sự trong Quyết định tổ TVGS</label><div id="personnelChangesList">'+personnelChangeRows(d.personnelChanges)+'</div><button type="button" onclick="addPersonnelChangeRow()">+ Thêm lần thay đổi</button></div>'
   +slotHtml(LEGAL_FILE_SLOTS.slice(0,5),'legal-only')+slotHtml(REPORT_FILE_SLOTS.slice(0,1),'report-only')+slotHtml([LEGAL_FILE_SLOTS[5]],'')
   +'<div class="full muted">Mỗi tệp tối đa 15 MB. Tệp được lưu trên máy chủ; mọi tài khoản được phân công công trình đều xem được.</div>'
@@ -55,10 +55,13 @@ async function saveDoc(docId=''){
  const msg=document.getElementById('docMessage');const btn=document.getElementById('docSaveBtn');const say=t=>{if(msg)msg.textContent=t};
  const group=document.getElementById('dgroup').value;const report=group==='REPORT';
  const name=document.getElementById('dname').value.trim();if(!name)return say('Nhập tên hồ sơ.');
+ const personnelRows=[...document.querySelectorAll('#personnelChangesList .personnel-change-row')];
+ const decisionFiles=[];
+ const personnelChanges=personnelRows.map((r,index)=>{const date=r.querySelector('.pc-date')?.value||'';const decision=r.querySelector('.pc-decision')?.value.trim()||'';const category='Quyết định thay thế nhân sự '+(decision||date||String(index+1));const file=r.querySelector('.pc-file')?.files?.[0];if(file)decisionFiles.push({file,category});return {date,removed:r.querySelector('.pc-removed')?.value.trim()||'',added:r.querySelector('.pc-added')?.value.trim()||'',decision,fileCategory:decision||date?category:''}}).filter(v=>v.date||v.removed||v.added||v.decision);
  const details=report?{reportType:document.getElementById('dreportType').value,period:document.getElementById('dperiod').value,plannedProgress:Number(document.getElementById('dplanned').value||0),actualProgress:Number(document.getElementById('dactual').value||0),manpower:Number(document.getElementById('dmanpower').value||0),volumeCompleted:document.getElementById('dvolume').value.trim(),scheduleStatus:document.getElementById('dschedule').value}
-  :{personnelChanges:[...document.querySelectorAll('#personnelChangesList .personnel-change-row')].map(r=>({date:r.querySelector('.pc-date')?.value||'',removed:r.querySelector('.pc-removed')?.value.trim()||'',added:r.querySelector('.pc-added')?.value.trim()||'',decision:r.querySelector('.pc-decision')?.value.trim()||''})).filter(v=>v.date||v.removed||v.added||v.decision)};
+  :{personnelChanges};
  const slots=[...document.querySelectorAll('#mbody input[type=file][data-category]')].filter(i=>i.closest('.full')?.style.display!=='none');
- const files=[];slots.forEach(i=>[...(i.files||[])].forEach(f=>files.push({file:f,category:i.dataset.category})));
+ const files=[...decisionFiles];slots.forEach(i=>[...(i.files||[])].forEach(f=>files.push({file:f,category:i.dataset.category})));
  const big=files.find(f=>f.file.size>MAX_DOC_FILE);if(big)return say('Tệp "'+big.file.name+'" vượt 15 MB.');
  if(btn)btn.disabled=true;
  try{

@@ -19,6 +19,9 @@ router.use(authMiddleware.verifyToken);
 // ---------------------------------------------------------------------------
 const TRANSITIONS = {
   submit: { from: 'DRAFT', run: (id, uid) => dailyLogService.submitDailyLog(id, uid), audit: 'SUBMIT' },
+  // Xác nhận thẳng: người lập chính là người có quyền Duyệt tại công trình đó (Trưởng TVGS tự lập nhật ký của mình)
+  // -> DRAFT chuyển thẳng APPROVED, không qua SUBMITTED. Vẫn ghi lịch sử duyệt (CONFIRM) để có dấu vết.
+  confirm: { from: 'DRAFT', run: (id, uid) => dailyLogService.confirmDailyLog(id, uid), audit: 'CONFIRM' },
   approve: { from: 'SUBMITTED', run: (id, uid) => dailyLogService.approveDailyLog(id, uid), audit: 'APPROVE' },
   reject: { from: 'SUBMITTED', run: id => dailyLogService.rejectDailyLog(id), audit: 'REJECT' },
   lock: { from: 'APPROVED', run: id => dailyLogService.lockDailyLog(id), audit: 'LOCK' },
@@ -34,24 +37,28 @@ async function transition(action, logId, userId, rawComment) {
   if (action === 'reject' && (!comment || comment.length < 3)) return { status: 400, error: 'Nhập nội dung yêu cầu chỉnh sửa, bổ sung' };
   if (action === 'escalate' && (!comment || comment.length < 3)) return { status: 400, error: 'Nhập nội dung cần công ty quyết định' };
   const log = await dailyLogService.getDailyLogById(logId);
-  if (!log) return { status: 404, error: 'Không tìm thấy nhật ký' };
+  if (!log) return { status: 404, error: 'Không tìm thấy báo cáo ngày' };
   const p = await permissionService.forUser(userId, log.project_id);
   const manager = ['ADMIN', 'DIRECTOR'].includes(p.role);
   if (!manager && !p.permissions.includes('VIEW')) return { status: 403, error: 'Không có quyền tại công trình này' };
   if (action === 'submit') {
     const ok = manager || p.permissions.includes('EDIT') || (log.created_by === userId && p.permissions.includes('CREATE'));
-    if (!ok) return { status: 403, error: 'Chỉ người lập nhật ký hoặc người có quyền Sửa được gửi duyệt' };
+    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày hoặc người có quyền Sửa được gửi duyệt' };
+  } else if (action === 'confirm') {
+    const ok = manager || p.permissions.includes('EDIT') || (log.created_by === userId && p.permissions.includes('CREATE'));
+    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày hoặc người có quyền Sửa được xác nhận' };
+    if (!permissionService.canApprove(p)) return { status: 403, error: 'Chỉ áp dụng khi bạn có quyền Duyệt tại công trình này — hãy dùng Gửi duyệt' };
   } else if (!permissionService.canApprove(p)) {
-    return { status: 403, error: 'Chỉ Trưởng TVGS của công trình (người có quyền Duyệt), Giám đốc hoặc Admin được duyệt/trả lại/khóa nhật ký' };
+    return { status: 403, error: 'Chỉ Trưởng TVGS của công trình (người có quyền Duyệt), Giám đốc hoặc Admin được duyệt/trả lại/khóa báo cáo ngày' };
   } else if (action === 'escalate') {
     if (manager) return { status: 400, error: 'Giám đốc/Admin quyết định trực tiếp, không cần trình công ty' };
-    if (await reviewService.lastAction('daily_logs', logId) === 'ESCALATE') return { status: 409, error: 'Nhật ký này đã được trình công ty' };
+    if (await reviewService.lastAction('daily_logs', logId) === 'ESCALATE') return { status: 409, error: 'Báo cáo ngày này đã được trình công ty' };
   } else if (!manager && (action === 'approve' || action === 'reject') && await reviewService.lastAction('daily_logs', logId) === 'ESCALATE') {
-    return { status: 409, error: 'Nhật ký đã trình công ty — chờ Giám đốc/Admin quyết định' };
+    return { status: 409, error: 'Báo cáo ngày đã trình công ty — chờ Giám đốc/Admin quyết định' };
   }
-  if (log.status !== t.from) return { status: 409, error: `Nhật ký đang ở trạng thái "${STATUS_VI[log.status] || log.status}", không thực hiện được` };
+  if (log.status !== t.from) return { status: 409, error: `Báo cáo ngày đang ở trạng thái "${STATUS_VI[log.status] || log.status}", không thực hiện được` };
   const updated = await t.run(logId, userId);
-  if (!updated) return { status: 409, error: 'Trạng thái nhật ký vừa thay đổi, hãy tải lại' };
+  if (!updated) return { status: 409, error: 'Trạng thái báo cáo ngày vừa thay đổi, hãy tải lại' };
   await reviewService.addNote({ entityType: 'daily_logs', entityId: logId, projectId: log.project_id, action: t.audit, comment, actorId: userId });
   return { log: updated, before: log, audit: t.audit, comment };
 }
@@ -101,7 +108,7 @@ router.get('/:id', async (req, res) => {
 
 router.get('/:id/attachments', async (req, res) => {
   try { res.json(await attachments.list(req.params.id)); }
-  catch (error) { res.status(500).json({ error: 'Không tải được ảnh nhật ký' }); }
+  catch (error) { res.status(500).json({ error: 'Không tải được ảnh báo cáo ngày' }); }
 });
 
 router.get('/:id/attachments/:attachmentId', async (req, res) => {
@@ -122,24 +129,32 @@ router.post('/:id/attachments', permissionService.requirePermission('CREATE'), a
   }
 });
 
+router.post('/:id/attachments-binary', permissionService.requirePermission('CREATE'), express.raw({ type: () => true, limit: 8 * 1024 * 1024 + 1024 }), async (req, res) => {
+  try {
+    const { attachment, created } = await attachments.saveBuffer(req.params.id, req.user.userId, String(req.query.name || 'anh-hien-truong').slice(0, 255), String(req.headers['content-type'] || ''), req.body);
+    if (created) await req.audit('attachments', attachment.id, 'CREATE', null, attachment, req.user.userId);
+    res.status(created ? 201 : 200).json(attachment);
+  } catch (error) { res.status(error.status || 500).json({ error: error.status ? error.message : 'Không lưu được ảnh' }); }
+});
+
 // POST /api/daily-logs (create DRAFT)
 // Lập nhật ký: theo quyền "Thêm" tại công trình (tùy chỉnh hoặc mặc định theo vai trò).
 router.post('/', access.body, permissionService.requirePermission('CREATE'), async (req, res) => {
   try {
     if (req.body.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.body.id)) {
-      return res.status(400).json({ error: 'ID nhật ký không hợp lệ' });
+      return res.status(400).json({ error: 'ID báo cáo ngày không hợp lệ' });
     }
     const { log, created } = await dailyLogService.createDailyLog({
       ...req.body,
       created_by: req.user.userId
     });
     if (log.project_id !== req.body.project_id) {
-      return res.status(409).json({ error: 'ID nhật ký đã được dùng ở công trình khác' });
+      return res.status(409).json({ error: 'ID báo cáo ngày đã được dùng ở công trình khác' });
     }
     if (created) await req.audit('daily_logs', log.id, 'CREATE', null, log, req.user.userId);
     res.status(created ? 201 : 200).json(log);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Nhật ký cùng ngày và ca đã tồn tại' });
+    if (err.code === '23505') return res.status(409).json({ error: 'Tài khoản này đã có báo cáo ngày trong cùng ngày và ca' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -150,12 +165,12 @@ router.patch('/:id', async (req, res) => {
     const perms = await permissionService.forUser(req.user.userId, req.projectId);
     const log = await dailyLogService.updateDailyLog(req.params.id, req.body, req.user.userId, perms);
     if (!log) {
-      return res.status(409).json({ error: 'Nhật ký không tồn tại hoặc không còn ở trạng thái DRAFT' });
+      return res.status(409).json({ error: 'Báo cáo ngày không tồn tại hoặc không còn ở trạng thái DRAFT' });
     }
     await req.audit('daily_logs', req.params.id, log.status === 'LOCKED' ? 'UPDATE_LOCKED' : 'UPDATE', null, log, req.user.userId);
     res.json(log);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Nhật ký cùng ngày và ca đã tồn tại' });
+    if (err.code === '23505') return res.status(409).json({ error: 'Tài khoản này đã có báo cáo ngày trong cùng ngày và ca' });
     res.status(500).json({ error: err.message });
   }
 });
@@ -180,11 +195,11 @@ router.get('/:id/files', async (req, res) => {
 router.post('/:id/files', express.raw({ type: () => true, limit: MAX_FILE + 1024 }), async (req, res) => {
   try {
     const log = await dailyLogService.getDailyLogById(req.params.id);
-    if (!log) return res.status(404).json({ error: 'Không tìm thấy nhật ký' });
+    if (!log) return res.status(404).json({ error: 'Không tìm thấy báo cáo ngày' });
     const p = await permissionService.forUser(req.user.userId, log.project_id);
     const manager = ['ADMIN', 'DIRECTOR'].includes(p.role);
-    if (!(manager || p.permissions.includes('EDIT') || (log.created_by === req.user.userId && p.permissions.includes('CREATE')))) return res.status(403).json({ error: 'Không có quyền thêm tệp cho nhật ký này' });
-    if (!manager && log.status !== 'DRAFT') return res.status(409).json({ error: 'Chỉ thêm tệp khi nhật ký còn là bản nháp' });
+    if (!(manager || p.permissions.includes('EDIT') || (log.created_by === req.user.userId && p.permissions.includes('CREATE')))) return res.status(403).json({ error: 'Không có quyền thêm tệp cho báo cáo ngày này' });
+    if (!manager && log.status !== 'DRAFT') return res.status(409).json({ error: 'Chỉ thêm tệp khi báo cáo ngày còn là bản nháp' });
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Tệp rỗng' });
     if (req.body.length > MAX_FILE) return res.status(413).json({ error: 'Mỗi tệp tối đa 15 MB' });
     const f = await dailyLogService.addFile(req.params.id, String(req.query.name || 'tai-lieu').slice(0, 255), String(req.headers['content-type'] || 'application/octet-stream').slice(0, 120), req.body, req.user.userId);
@@ -204,7 +219,7 @@ router.get('/:id/files/:fileId', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const log = await dailyLogService.getDailyLogById(req.params.id);
-    if (!log) return res.status(404).json({ error: 'Không tìm thấy nhật ký' });
+    if (!log) return res.status(404).json({ error: 'Không tìm thấy báo cáo ngày' });
     const p = await permissionService.forUser(req.user.userId, log.project_id);
     if (!p.permissions.includes('DELETE')) return res.status(403).json({ error: 'Tài khoản chưa được cấp quyền "Xóa" tại công trình này' });
     const reason = reviewService.cleanComment(req.body?.reason);

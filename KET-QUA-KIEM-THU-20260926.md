@@ -123,3 +123,20 @@ Ba hành vi thật của ứng dụng được ca kiểm thử ghi lại (không
 | `node --test backend/tests/jsUnits.test.js` | **6/6 đạt** — gồm ca chạy trên toàn bộ JS thật của `index.html` |
 
 Ba lỗi của bộ kiểm thử phát hiện trong đợt này (đã sửa, không phải lỗi ứng dụng): tệp tạm trong container dùng chung tên nên hai lượt chạy song song xoá tệp của nhau; `loginViaApi` chưa chờ quyền theo công trình tải xong nên nav "Việc cần duyệt" bị kiểm quá sớm; thời gian chờ mặc định 15 s quá chặt khi chạy đồng thời hai bộ trên cùng máy (nâng lên 25 s). Tên CSDL thử mặc định nay có phần ngẫu nhiên để hai lượt chạy không bao giờ tranh nhau.
+
+## Đợt 16 — bản 2026-10-09.2, MVP-04 (fork riêng từ MVP-03, cổng 8082/3003/5434, DB `vina_supervision_mvp04`)
+
+**Chưa chạy được bộ kiểm thử tự động đợt này** — công cụ dòng lệnh (Bash/PowerShell) trong phiên làm việc bị một phiên Claude Code khác tranh chấp thư mục tạm suốt cả buổi, không khởi chạy được tiến trình nào. Đã kiểm tra thay thế bằng cách đọc mã:
+
+| Việc | Cách kiểm tra | Kết quả |
+|---|---|---|
+| 3 sửa đổi báo lỗi (`js/05-nhat-ky.js`, `api.js`, `js/11-duyet.js`, `index.html`) | Đọc lại thủ công từng đoạn, đối chiếu dấu ngoặc quanh vị trí sửa | Không thấy lỗi cú pháp |
+| `syncPendingDailyLogs`/`syncPendingProjects` bỏ điều kiện `navigator.onLine` có còn an toàn khi thật sự mất mạng | Đọc lại toàn bộ thân hàm: mỗi mục hàng đợi có `try/catch` riêng, lỗi mạng chỉ đánh dấu `lastError` + giữ `PENDING` | An toàn |
+| Toàn bộ cổng/tên CSDL trong mã chạy được (`.ps1`, `.cmd`, `.js`, `.yml`, `.env`) đã đổi khỏi giá trị của MVP-03 (8081/3002/5433/vina_supervision) | `grep` toàn bộ thư mục (trừ `node_modules`) tìm `8081`, `3002`, `5433` | Không còn sót ở tệp cấu hình/script chạy được — chỉ còn trong vài tài liệu lịch sử (`DEPLOY-MULTISITE.md`, `BAO-CAO-CHUYEN-DU-LIEU-20260929.md`, `NEXT-STEPS.md`), giữ nguyên vì đó là ghi chép của MVP-03 |
+| `node backend\scripts\check-frontend.js`, `docker compose up`, `run-regression.cmd`, `run-ui-tests.cmd` | — | **Chưa chạy được** (công cụ dòng lệnh lỗi) — chưa xác nhận MVP-04 thật sự khởi động được với cổng mới |
+
+**Cần anh làm trước khi tin tưởng bản này:** chạy `.\run.bat` trong `VINA-SUPERVISION-MVP-04` (không phải MVP-03), Ctrl+F5 tại `http://localhost:8082/`, rồi thử lại đúng 3 việc đã báo. Tiện thì chạy `backend\scripts\kiem-tra-tat-ca.cmd` và cho xem `backend\tests\last-summary.txt`.
+
+**Cập nhật sau khi kiểm tra được bằng trình duyệt thật (không chỉ đọc mã):** cả 3 lỗi đã xác nhận **sửa đúng** — dùng tài khoản `duong` (đã đặt lại mật khẩu để thử), thao tác trực tiếp trên `localhost:8082`: bấm "↻ Tải lại" ở Việc cần duyệt → `GET /api/reviews/inbox` trả 200 và danh sách cập nhật; tạo + gửi duyệt một nhật ký mới → `POST /api/daily-logs` (201) rồi `POST /api/daily-logs/{id}/submit` (200), không còn báo "chưa lên máy chủ"; Enter ở khung mật khẩu gửi được yêu cầu đăng nhập thật.
+
+**Phát hiện thêm, quan trọng hơn cả 3 lỗi gốc:** `web-public` (thư mục thật sự phục vụ ở cổng 8082) không được `start-dev.ps1` đồng bộ từ thư mục gốc như thiết kế — vẫn giữ bản rất cũ (`2026-10-08.1`, còn thiếu hẳn 2 tệp `js/00-tep-ngoai-tuyen.js` và `js/15-cai-dat-ung-dung.js` gây lỗi 404) dù `run.bat` báo "sẵn sàng" nhiều lần. Đã chép tay đủ để khớp bản gốc và test qua được (xác nhận: sửa tay vào `web-public` có hiệu lực ngay lập tức khi fetch lại, nên cổng 8082 đúng là phục vụ từ thư mục này, không phải tiến trình lạc nào khác). Đã loại trừ giả thuyết "thiếu tệp làm `Copy-Item` dừng giữa chừng" — kiểm tra lại thì `favicon.ico`, `manifest.webmanifest`, các tệp `assets\*` đều có đủ ở thư mục gốc. **Vẫn chưa tìm ra nguyên nhân thật** — cần công cụ dòng lệnh (đang lỗi) để chạy thử `start-dev.ps1` và xem trực tiếp bước chép có báo gì không. Cần xác minh lại ở lần chạy `run.bat` tiếp theo: nếu sửa mã mà giao diện không đổi, đừng cho là sửa sai — kiểm tra `web-public` trước (so `APP_BUILD` trong `web-public\js\14-dang-nhap.js` với tệp gốc).

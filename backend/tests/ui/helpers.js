@@ -12,7 +12,7 @@ const { createTestDb } = require('../lib/testDb');
 
 const PORT = 3103;
 const BASE = `http://127.0.0.1:${PORT}`;
-const DB_URL = process.env.UI_TEST_DB_URL || 'postgres://postgres:postgres@127.0.0.1:5432/vina_ui_claude';
+const DB_URL = process.env.UI_TEST_DB_URL || 'postgres://postgres:postgres@127.0.0.1:5434/vina_ui_claude';
 const ART = path.join(__dirname, '..', 'ui-artifacts');
 
 let db = null, server = null, browser = null;
@@ -44,8 +44,12 @@ async function stopApp() {
   if (server) server.kill();
 }
 
-async function newPage(name) {
-  const context = await browser.newContext({ baseURL: BASE, serviceWorkers: 'block', viewport: { width: 1440, height: 900 } });
+async function newPage(name, options = {}) {
+  const context = await browser.newContext({
+    baseURL: BASE,
+    serviceWorkers: 'block',
+    viewport: options.viewport || { width: 1440, height: 900 }
+  });
   const page = await context.newPage();
   // 25s: khi chay cung luc voi bo regression + Docker, may tai nang nen 15s qua chat.
   page.setDefaultTimeout(25000);
@@ -72,9 +76,9 @@ async function dump(page, name) {
   } catch (_) { /* lỗi khi chụp không được che lỗi thật của ca */ }
 }
 
-function uiTest(name, fn) {
+function uiTest(name, fn, options = {}) {
   test(name, async () => {
-    const page = await newPage(name);
+    const page = await newPage(name, options);
     try {
       await fn(page);
     } catch (e) {
@@ -120,13 +124,22 @@ async function loginViaForm(page, who, password = 'demo') {
   await page.click('#loginButton');
 }
 
+// "Báo cáo ngày" (daily) không còn nút riêng trên thanh nav (gộp vào "Báo cáo", bản 2026-10-14.3) —
+// vào qua nút "Báo cáo" rồi bấm tab trong trang "📝 Báo cáo ngày (cá nhân)".
 async function openPage(page, dataPage) {
+  if (dataPage === 'daily') {
+    await page.click('nav button[data-page="reports"]');
+    await page.click('.report-hub-tab[data-tab="daily"]');
+    await page.waitForSelector('#daily.page.active', { state: 'visible' });
+    return;
+  }
   await page.click(`nav button[data-page="${dataPage}"]`);
   await page.waitForSelector(`#${dataPage}.page.active`, { state: 'visible' });
 }
 
 async function navVisible(page, dataPage) {
-  return page.locator(`nav button[data-page="${dataPage}"]`).isVisible();
+  const navKey = dataPage === 'daily' ? 'reports' : dataPage;
+  return page.locator(`nav button[data-page="${navKey}"]`).isVisible();
 }
 
 function apiAs(token) {

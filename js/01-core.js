@@ -55,39 +55,41 @@ function canEdit(){return [
 function canCreateLogIn(projectId){if(canManageAssignments())return true;return qualityPermissions(projectId).includes('CREATE')}
 function isPrivilegedLogEditor(){return canManageAssignments()}
 function renderSelects(){['logProject','issueProject','docProject'].forEach(sid=>{let el=document.getElementById(sid);if(el){let old=el.value;el.innerHTML='<option value="">Tất cả công trình</option>'+projectsOptions(old);el.value=old||''}})}
-function goPage(page){if(page==='dashboard'&&!canViewDashboard())page='projects';if(page==='settings'&&!canManageAssignments())page='projects';document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));const btn=document.querySelector(`nav button[data-page="${page}"]`);if(btn)btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(page).classList.add('active')}
+function goPage(page){if(page==='dashboard'&&!canViewDashboard())page='projects';if(page==='settings'&&!canManageAssignments())page='projects';document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));const navKey=page==='daily'?'reports':page;const btn=document.querySelector(`nav button[data-page="${navKey}"]`);if(btn)btn.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));document.getElementById(page).classList.add('active');document.querySelectorAll('.report-hub-tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===page))}
 function goDashboard(){currentProjectId=null;goPage('dashboard');renderAll()}
 function logStatusBadge(st){return '<span class="badge '+String(st||'').toLowerCase()+'">'+esc(LOG_STATUS[st]||st||'')+'</span>'}
 function logActionsHtml(x){
  const b=[];
  if(canEditLog(x))b.push('<button onclick="openLog(\''+x.id+'\')">Sửa</button>');
  if(!x.serverId)b.push('<span class="chip warn">Chờ đồng bộ</span>');
- if(canSubmitLog(x))b.push('<button class="primary" onclick="logAction(\''+x.id+'\',\'submit\')">Gửi duyệt</button>');
+ if(canSubmitLog(x)){const act=canApproveIn(x.projectId)?'confirm':'submit';b.push('<button class="primary" onclick="logAction(\''+x.id+'\',\''+act+'\')">'+(act==='confirm'?'Xác nhận':'Gửi duyệt')+'</button>')}
  if(x.serverId&&x.status==='SUBMITTED'&&isLogLead(x.projectId)&&(canManageAssignments()||x.lastReview?.action!=='ESCALATE'))b.push('<button class="primary" onclick="logAction(\''+x.id+'\',\'approve\')">Duyệt</button>','<button onclick="logAction(\''+x.id+'\',\'reject\')">Trả lại</button>');
  if(x.serverId&&x.status==='APPROVED'&&isLogLead(x.projectId))b.push('<button onclick="logAction(\''+x.id+'\',\'lock\')">Khóa</button>');
  if(x.serverId&&(x.fileCount||x.photoCount))b.push('<button onclick="showLogFiles(\''+x.id+'\')">Tệp ('+((x.fileCount||0)+(x.photoCount||0))+')</button>');
  b.push('<button onclick="exportDailyLog(\''+x.id+'\')">Xuất</button>');
- if(x.serverId)b.push(deleteBtn('log',x.serverId,x.projectId,'Nhật ký '+progressDate(x.date)+' — '+shiftLabel(x.shift)));
+ if(x.serverId)b.push(deleteBtn('log',x.serverId,x.projectId,'Báo cáo ngày '+progressDate(x.date)+' — '+shiftLabel(x.shift)));
  return b.join(' ');
 }
 async function showLogFiles(logId){
  const l=db.logs.find(v=>v.id===logId);if(!l?.serverId)return;
  try{const files=await apiRequest('/daily-logs/'+encodeURIComponent(l.serverId)+'/files');
-  openModal('Tệp kèm nhật ký '+progressDate(l.date)+' — '+shiftLabel(l.shift),'<div class="card">'+(files.length?'<ul>'+files.map(f=>'<li><a href="#" onclick="openServerFile(\'/daily-logs/'+l.serverId+'/files/'+f.id+'\','+esc(JSON.stringify({name:f.file_name,type:f.file_type}))+',false);return false">'+esc(f.file_name)+'</a> <span class="muted">('+fileSize(f.file_size)+')</span></li>').join('')+'</ul>':'<p class="muted">Không có tài liệu.</p>')+(l.photoCount?'<button onclick="showLogPhotos(\''+l.id+'\')">Xem '+l.photoCount+' ảnh hiện trường</button>':'')+'</div>')}
+  openModal('Tệp kèm báo cáo ngày '+progressDate(l.date)+' — '+shiftLabel(l.shift),'<div class="card">'+(files.length?'<ul>'+files.map(f=>'<li><a href="#" onclick="openServerFile(\'/daily-logs/'+l.serverId+'/files/'+f.id+'\','+esc(JSON.stringify({name:f.file_name,type:f.file_type}))+',false);return false">'+esc(f.file_name)+'</a> <span class="muted">('+fileSize(f.file_size)+')</span></li>').join('')+'</ul>':'<p class="muted">Không có tài liệu.</p>')+(l.photoCount?'<button onclick="showLogPhotos(\''+l.id+'\')">Xem '+l.photoCount+' ảnh hiện trường</button>':'')+'</div>')}
  catch(error){alert('Không tải được danh sách tệp: '+error.message)}
 }
 async function logAction(logId,action,silent){
- const l=db.logs.find(v=>v.id===logId);if(!l?.serverId)return alert('Nhật ký chưa lên máy chủ.');
+ const l=db.logs.find(v=>v.id===logId);if(!l?.serverId)return alert('Báo cáo ngày chưa lên máy chủ.');
+ if((action==='submit'||action==='confirm')&&typeof queuedFileCount==='function'&&await queuedFileCount('daily_log',l.id))return alert('Báo cáo ngày còn ảnh hoặc tài liệu chưa đồng bộ. Hãy kết nối mạng và chờ tải xong trước khi gửi duyệt.');
  if((action==='approve'||action==='reject')&&!silent)return openReviewDecision('daily_logs',l.serverId,action);
- const ask={submit:'Gửi nhật ký này cho Trưởng TVGS duyệt? Sau khi gửi sẽ không sửa được (trừ khi bị trả lại).',reject:'Trả lại nhật ký cho người lập sửa?',lock:'Khóa nhật ký? Nhật ký đã khóa là hồ sơ chính thức.'}[action];
+ const ask={submit:'Gửi báo cáo ngày này cho Trưởng TVGS duyệt? Sau khi gửi sẽ không sửa được (trừ khi bị trả lại).',confirm:'Xác nhận báo cáo ngày này? Bạn là người có quyền Duyệt tại công trình này nên báo cáo sẽ chuyển thẳng sang Đã duyệt, không qua bước Chờ duyệt.',reject:'Trả lại báo cáo ngày cho người lập sửa?',lock:'Khóa báo cáo ngày? Báo cáo đã khóa là hồ sơ chính thức.'}[action];
  if(ask&&!silent&&!confirm(ask))return;
  try{const r=await apiRequest('/daily-logs/'+encodeURIComponent(l.serverId)+'/'+action,{method:'POST'});l.status=r.status;l.version=Number(r.version||l.version||1);l.canEdit=false;audit(action.toUpperCase(),'daily_log',l.serverId,l.date+' '+shiftLabel(l.shift));save()}
  catch(error){alert('Không thực hiện được: '+error.message)}
 }
 async function logBulk(action,ids){
  if(!ids.length)return;
+ if(action==='submit'&&typeof queuedFileCount==='function'){const blocked=[];for(const id of ids)if(await queuedFileCount('daily_log',id))blocked.push(id);if(blocked.length)return alert(blocked.length+' báo cáo ngày còn ảnh hoặc tài liệu chưa đồng bộ. Hãy kết nối mạng và chờ tải xong trước khi gửi duyệt.')}
  const label={submit:'Gửi duyệt',approve:'Duyệt',lock:'Khóa'}[action];
- if(!confirm(label+' '+ids.length+' nhật ký?'))return;
+ if(!confirm(label+' '+ids.length+' báo cáo ngày?'))return;
  try{const r=await apiRequest('/daily-logs/bulk',{method:'POST',body:JSON.stringify({action,ids:ids.map(id=>db.logs.find(l=>l.id===id)?.serverId).filter(Boolean)})});
   r.done.forEach(x=>{const l=db.logs.find(v=>v.serverId===x.id);if(l){l.status=x.status;l.canEdit=false}});save();
   alert(label+' thành công '+r.done.length+'/'+ids.length+(r.failed.length?'.\nKhông thực hiện được:\n'+r.failed.map(f=>{const l=db.logs.find(v=>v.serverId===f.id);return '- '+(l?l.date+' '+shiftLabel(l.shift):f.id)+': '+f.error}).join('\n'):'.'))}
@@ -106,7 +108,7 @@ function todayIso(){const d=new Date();return d.getFullYear()+'-'+String(d.getMo
 function daysBetween(a,b){if(!a||!b)return '';return Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000)+1}
 function numVN(n,k=0){if(n===null||n===undefined||n==='')return '';return Number(n).toLocaleString('vi-VN',{maximumFractionDigits:k})}
 function canUpdateActual(pid){return canManageAssignments()||(typeof canCreateLogIn==='function'&&canCreateLogIn(pid))}
-function apiOnline(){return navigator.onLine&&typeof getAuthToken==='function'&&!!getAuthToken()}
+function apiOnline(){return typeof getAuthToken==='function'&&!!getAuthToken()}
 function applyParsed(result){
  if(!result.items?.length&&result.error){alert(result.error);return}
  if(progressEditor.items.some(i=>i.hasActual)&&!confirm('Bảng này đã có số liệu thực tế. Nạp danh sách mới sẽ thay toàn bộ hạng mục và XÓA số liệu thực tế cũ khi lưu. Nên tạo "Bảng tiến độ mới / gia hạn" thay vì ghi đè. Vẫn tiếp tục?'))return;
@@ -117,13 +119,13 @@ function applyParsed(result){
 }
 function wideModal(){document.querySelector('#modal .modalbox')?.classList.add('wide')}
 function renderAll(){
-const qualityNav=document.querySelector('nav button[data-page="issues"]');if(qualityNav)qualityNav.innerHTML='⚠ <span>Chất lượng công trình</span>';const qualityHeading=document.querySelector('#issues h2');if(qualityHeading)qualityHeading.textContent='Chất lượng công trình';
+const qualityNav=document.querySelector('nav button[data-page="issues"]');if(qualityNav)qualityNav.innerHTML='⚠️ <span>Chất lượng công trình</span>';const qualityHeading=document.querySelector('#issues h2');if(qualityHeading)qualityHeading.textContent='Chất lượng công trình';
 const addPersonButton=document.getElementById('addPersonButton');if(addPersonButton)addPersonButton.style.display=canManageAssignments()?'':'none';
 const settingsNav=document.querySelector('nav button[data-page="settings"]');if(settingsNav)settingsNav.style.display=canManageAssignments()?'':'none';if(!canManageAssignments()&&document.getElementById('settings')?.classList.contains('active'))goPage('projects');
 if(typeof applyInboxNavVisibility==='function')applyInboxNavVisibility();
 if(typeof applyTrashNavVisibility==='function')applyTrashNavVisibility();
 enforceDashboardAccess();renderSelects();if(canViewDashboard())renderDashboard();renderProjects();renderLogs();renderIssues();renderDocs();if(typeof renderReports==='function')renderReports();renderPeople();renderAudit();
-document.getElementById('role').value=db.role;updateNet();
+document.getElementById('role').value=db.role;updateNet();renderHeaderUser();
 if(currentProjectId&&document.getElementById('projectDetail').classList.contains('active'))renderProjectDetail();
 }
 function openModal(title,body){if(window.__forcePw)return;document.querySelector('#modal .modalbox')?.classList.remove('wide');document.getElementById('mtitle').textContent=title;document.getElementById('mbody').innerHTML=body;document.getElementById('modal').classList.add('show')}
@@ -178,6 +180,25 @@ async function uploadDocFile(docId,file,category){
  if(!res.ok){let m='HTTP '+res.status;try{m=(await res.json()).error||m}catch(_){}throw new Error(m)}
  return res.json();
 }
+// Tệp đính kèm văn bản chất lượng (bản ký/scan) — lưu qua issue_files trên máy chủ, không còn base64 cục bộ.
+async function uploadIssueFile(issueId,file){
+ const res=await fetch(API_BASE+'/issues/'+encodeURIComponent(issueId)+'/files?name='+encodeURIComponent(file.name),{method:'POST',headers:{Authorization:'Bearer '+getAuthToken(),'Content-Type':file.type||'application/octet-stream'},body:file});
+ if(!res.ok){let m='HTTP '+res.status;try{m=(await res.json()).error||m}catch(_){}throw new Error(m)}
+ return res.json();
+}
+function issueFileLinksHtml(files){
+ if(!Array.isArray(files)||!files.length)return '<span class="muted">Chưa có tệp</span>';
+ return files.map(f=>'<a href="#" onclick="openServerFile(\'/issues/'+f.issueId+'/files/'+f.id+'\','+esc(JSON.stringify({name:f.file_name,type:f.file_type}))+',false);return false">'+esc(f.file_name)+'</a> <span class="muted">('+fileSize(f.file_size)+')</span>').join(', ');
+}
+// Đổ danh sách tệp đã tải lên vào khung `boxId` sau khi mở modal (văn bản đã tồn tại trên máy chủ mới có tệp để liệt kê).
+async function renderIssueFilesBox(boxId,issueId){
+ const box=document.getElementById(boxId);if(!box)return;
+ if(!issueId||!apiOnline()){box.innerHTML='';return}
+ try{
+  const files=await apiRequest('/issues/'+encodeURIComponent(issueId)+'/files');
+  box.innerHTML=files.length?('<b>Bản ký/tài liệu đính kèm đã lưu trên máy chủ:</b> '+issueFileLinksHtml(files.map(f=>({...f,issueId})))):'';
+ }catch(_){box.innerHTML=''}
+}
 // Lấy hồ sơ từ máy chủ cho mọi công trình được xem; đồng thời đẩy hồ sơ cũ còn nằm trong trình duyệt lên máy chủ.
 async function syncDocumentsFromApi(){
  if(!apiOnline()||typeof apiGetDocuments!=='function')return;
@@ -196,7 +217,7 @@ function downloadDocumentFile(docId,index){const x=db.docs.find(v=>v.id===docId)
 // Số liệu tổng hợp tự động từ nhật ký, văn bản chất lượng, hồ sơ, bảng tiến độ → người lập bổ sung
 // nhận xét, kiến nghị → lưu thành hồ sơ nhóm "Báo cáo" (dùng chung quy trình Gửi duyệt/Duyệt/Khóa).
 // ============================================================================
-const REPORT_TYPES={DAILY:'Báo cáo ngày',WEEKLY:'Báo cáo tuần',MONTHLY:'Báo cáo tháng',FINAL:'Báo cáo hoàn thành'};
+const REPORT_TYPES={DAILY:'Tổng hợp ngày',WEEKLY:'Báo cáo tuần',MONTHLY:'Báo cáo tháng',FINAL:'Báo cáo hoàn thành'};
 const REPORT_SECTIONS={
  DEFAULT:[['quality','Đánh giá chất lượng thi công'],['schedule','Đánh giá tiến độ'],['safety','An toàn lao động, vệ sinh môi trường'],['issues','Tồn tại và kiến nghị'],['next','Kế hoạch kỳ tới']],
  FINAL:[['quality','Đánh giá chất lượng công trình'],['schedule','Đánh giá tiến độ thực hiện'],['safety','An toàn lao động, vệ sinh môi trường'],['issues','Tồn tại đã/chưa khắc phục'],['conclusion','Kết luận và đề nghị nghiệm thu']]
@@ -226,13 +247,14 @@ save();
 function exportJSON(){let blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});let a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vina-supervision-backup.json';a.click()}
 function clearAll(){if(confirm('Xóa toàn bộ dữ liệu cục bộ?')){localStorage.removeItem(KEY);location.reload()}}
 function updateNet(){let el=document.getElementById('net');el.textContent=navigator.onLine?'● ONLINE':'● OFFLINE';el.style.background=navigator.onLine?'#027a48':'#b54708'}
+function renderHeaderUser(){const el=document.getElementById('hdrUser');if(!el)return;const u=typeof getAuthUser==='function'?getAuthUser():null;if(!u){el.textContent='';return}const roleLabel=(typeof ROLE_LABELS!=='undefined'&&ROLE_LABELS[u.role_name])||db.role||u.role_name||'';el.textContent=(u.full_name||u.username||'')+(roleLabel?' · '+roleLabel:'')}
 
 async function showLogPhotos(logId){
   const log=db.logs.find(x=>x.id===logId);
   if(!log)return;
   openModal('Ảnh hiện trường','<p id="photoGallery" class="muted">Đang tải ảnh...</p>');
   let photos=(log.photos||[]).filter(x=>x.data);
-  if(navigator.onLine && getAuthToken() && (log.serverId||log.id)){
+  if(apiOnline() && (log.serverId||log.id)){
     try{
       const serverId=log.serverId||log.id;
       const files=await apiRequest('/daily-logs/'+encodeURIComponent(serverId)+'/attachments');
@@ -246,7 +268,7 @@ async function showLogPhotos(logId){
   const gallery=document.getElementById('photoGallery');
   if(gallery)gallery.innerHTML=photos.length
     ? photos.map(p=>`<div><img class="photo" src="${p.data}" alt="${esc(p.name)}"><div class="muted">${esc(p.name)}</div></div>`).join('')
-    : 'Nhật ký này chưa có ảnh.';
+    : 'Báo cáo ngày này chưa có ảnh.';
 }
 const ACCOUNT_TYPES=['TVGS_LEAD','ENGINEER','MANAGER','DIRECTOR','ADMIN'];
 function cleanPersonName(v){return String(v||'').normalize('NFC').replace(/\s+/g,' ').trim()}
@@ -299,7 +321,7 @@ async function openReturnedItem(kind,id){
   return d.details?.snapshot?openReport(id):openDoc(id);
  }
  const l=(db.logs||[]).find(v=>v.serverId===id);
- if(!l)return alert('Nhật ký chưa tải về thiết bị này. Hãy tải lại trang (Ctrl+F5) rồi thử lại.');
+ if(!l)return alert('Báo cáo ngày chưa tải về thiết bị này. Hãy tải lại trang (Ctrl+F5) rồi thử lại.');
  openLog(l.id);
 }
 // ============================================================================

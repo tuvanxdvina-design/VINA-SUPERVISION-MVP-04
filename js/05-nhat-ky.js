@@ -3,7 +3,12 @@ function shiftLabel(code){const c=String(code||'CA1').toUpperCase();const f=SHIF
 const LOG_STATUS={DRAFT:'Nháp',SUBMITTED:'Chờ duyệt',APPROVED:'Đã duyệt',LOCKED:'Đã khóa'};
 function renderLogs(){
   const pid=document.getElementById('logProject')?.value||'';
-  const list=db.logs.filter(x=>!pid||x.projectId===pid).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift)));
+  const projectLogs=db.logs.filter(x=>!pid||x.projectId===pid);
+  const authorSelect=document.getElementById('logAuthor');const oldAuthor=authorSelect?.value||'';
+  const authors=[...new Map(projectLogs.map(x=>[x.createdById||x.createdBy||'',{id:x.createdById||x.createdBy||'',name:x.createdBy||'Chưa xác định'}])).values()].filter(x=>x.id).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
+  if(authorSelect){authorSelect.innerHTML='<option value="">Tất cả người lập</option>'+authors.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');authorSelect.value=authors.some(x=>x.id===oldAuthor)?oldAuthor:''}
+  const author=authorSelect?.value||'';
+  const list=projectLogs.filter(x=>!author||(x.createdById||x.createdBy||'')===author).sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.shift).localeCompare(String(b.shift)));
   const rows=list.map(x=>{
     const project=db.projects.find(p=>p.id===x.projectId)||{};
     return '<tr><td>'+esc(x.date||'')+'<br><span class="muted">'+esc(shiftLabel(x.shift))+'</span></td><td>'+esc(project.name||'')+'</td><td>'+esc(x.work||'')+(x.weather?'<br><span class="muted">Thời tiết: '+esc(x.weather)+'</span>':'')+
@@ -15,31 +20,73 @@ function renderLogs(){
   const toLock=list.filter(x=>x.serverId&&x.status==='APPROVED'&&isLogLead(x.projectId)).map(x=>x.id);
   const bar=(mySubmit.length||toApprove.length||toLock.length)?'<div class="toolbar" style="margin:0 0 10px">'+(mySubmit.length?'<button class="primary" onclick="logBulk(\'submit\','+esc(JSON.stringify(mySubmit))+')">Gửi duyệt tất cả nháp ('+mySubmit.length+')</button>':'')+(toApprove.length?'<button class="primary" onclick="logBulk(\'approve\','+esc(JSON.stringify(toApprove))+')">Duyệt tất cả đang chờ ('+toApprove.length+')</button>':'')+(toLock.length?'<button onclick="logBulk(\'lock\','+esc(JSON.stringify(toLock))+')">Khóa tất cả đã duyệt ('+toLock.length+')</button>':'')+'</div>':'';
   const guide='<p class="muted" style="margin:0 0 8px">Quy trình: <b>Nháp</b> (người lập còn sửa) → <b>Gửi duyệt</b> → Trưởng TVGS <b>Duyệt</b> hoặc <b>Trả lại</b> → <b>Khóa</b> (hồ sơ chính thức).</p>';
-  document.getElementById('logsTable').innerHTML=guide+bar+(rows?'<table><thead><tr><th>Ngày / ca</th><th>Công trình</th><th>Công việc</th><th>Người lập</th><th>NL</th><th>Máy</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted">Chưa có nhật ký.</p>');
+  document.getElementById('logsTable').innerHTML=guide+bar+(rows?'<table><thead><tr><th>Ngày / ca</th><th>Công trình</th><th>Công việc</th><th>Người lập</th><th>NL</th><th>Máy</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted">Chưa có báo cáo ngày.</p>');
 }
-function openLog(lid=''){
-if(!canEditDailyLog())return alert('Tài khoản hiện tại không được lập hoặc sửa nhật ký.');
+// Nhân lực/máy móc theo từng loại (một buổi có nhiều loại thợ/máy khác nhau) — tên loại tự gõ.
+function resourceRowHtml(cls,item){return '<div class="'+cls+'-row" style="display:grid;grid-template-columns:1fr 90px auto;gap:8px;margin:4px 0"><input class="'+cls+'-type" value="'+esc(item?.type||'')+'" placeholder="Loại (VD: Thợ xây, Máy xúc)"><input class="'+cls+'-count" type="number" min="1" value="'+(item&&item.count!=null?item.count:'')+'" placeholder="SL"><button type="button" onclick="this.parentElement.remove()">Xóa</button></div>'}
+function resourceRowsHtml(cls,items){return (items&&items.length?items:[null]).map(i=>resourceRowHtml(cls,i)).join('')}
+function addResourceRow(cls){const box=document.getElementById(cls+'Box');if(box)box.insertAdjacentHTML('beforeend',resourceRowHtml(cls,null))}
+function readResourceRows(cls){
+ const types=[...document.querySelectorAll('.'+cls+'-type')],counts=[...document.querySelectorAll('.'+cls+'-count')];
+ const rows=[];for(let i=0;i<types.length;i++){const type=(types[i].value||'').trim();const count=Number(counts[i].value||0);if(type&&count>0)rows.push({type,count})}
+ return rows;
+}
+function resourceSummary(items,total){return items&&items.length?items.map(x=>esc(x.type)+': '+x.count).join(', '):String(total||0)}
+let currentLogPackage=null;
+// Khi công trình có khai báo Gói thầu VÀ người lập đã được ấn định vào đúng 1 gói thầu đó,
+// đổi "Đơn vị tc"/"Hạng mục" từ ô tự gõ sang chọn theo đúng nhà thầu/hạng mục trong gói được gán.
+// Chưa có gói thầu, hoặc người lập chưa được ấn định gói nào → giữ nguyên ô tự gõ như trước.
+async function openLog(lid=''){
+if(!canEditDailyLog())return alert('Tài khoản hiện tại không được lập hoặc sửa báo cáo ngày.');
 if(!db.projects.length)return alert('Hãy tạo công trình trước.');
 let x=db.logs.find(l=>l.id===lid)||{};const isEdit=!!lid;
-if(isEdit&&!canEditLog(x))return alert('Nhật ký này không còn được phép sửa.');
-const logProjects=isEdit?(db.projects||[]).filter(p=>p.id===x.projectId):logProjectsForCreate();if(!logProjects.length)return alert('Tài khoản chưa được cấp quyền "Thêm" nhật ký ở công trình nào.');
-openModal(isEdit?'Sửa nhật ký':'Lập nhật ký',`${isEdit?reviewBlockHtml(x,{history:false}):''}<div class="row"><div><label>C&#x00f4;ng tr&#x00ec;nh</label><select id="lproj">${logProjects.map(p=>`<option value="${p.id}" ${p.id===x.projectId?'selected':''}>${esc(p.code)} - ${esc(p.name)}</option>`).join('')}</select></div><div><label>Ng&#x00e0;y</label><input id="ldate" type="date" value="${x.date||new Date().toISOString().slice(0,10)}"></div><div><label>Ca l&#224;m vi&#7879;c</label><select id="lshift">${SHIFT_OPTIONS.map(([v,t])=>`<option value="${v}" ${(x.shift||'CA1')===v?'selected':''}>${t}</option>`).join('')}</select></div><div class="full"><label>C&#x00f4;ng vi&#x1ec7;c</label><textarea id="lwork" rows="3">${esc(x.work||'')}</textarea></div><div><label>Nh&#x00e2;n l&#x1ef1;c</label><input id="lworkers" type="number" value="${x.workers??0}"></div><div><label>M&#x00e1;y m&#x00f3;c</label><input id="lmachines" type="number" value="${x.machines??0}"></div><div><label>Thời tiết</label><input id="lweather" list="weatherList" value="${esc(x.weather||'')}" placeholder="Nắng / Mưa / Âm u..."><datalist id="weatherList"><option>Nắng</option><option>Nắng nóng</option><option>Mây</option><option>Mưa nhỏ</option><option>Mưa to</option><option>Âm u</option></datalist></div><div><label>Ghi ch&#x00fa</label><textarea id="lnote" rows="2">${esc(x.note||'')}</textarea></div><div class="full"><label>&#x1ea2;nh hi&#x1ec7;n tr&#x01b0;&#x1edd;ng</label><input id="lphotos" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="muted">C&#x00f3; th&#x1ec3; th&#x00eam &#x1ea3;nh khi ch&#x1ec9;nh s&#x1eeda nh&#x1ead;t k&#x00fd.</div></div><div class="full"><label>T&#x00e0;i li&#x1ec7;u k&#x00e8;m theo</label><input id="ldocuments" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,image/*" multiple><div class="muted">Cho ph&#x00e9;p t&#x1ea3;i bi&#x00ean b&#x1ea3;n, th&#x01b0; k&#x1ef9; thu&#x1ead;t ho&#x1eb7;c t&#x00e0;i li&#x1ec7;u li&#x00ean quan.</div></div><div class="full toolbar"><button class="primary" onclick="saveLog('${lid}',false)">${isEdit?'Lưu thay đổi':'Lưu nháp'}</button><button onclick="saveLog('${lid}',true)">${isEdit?'Lưu và gửi duyệt':'Lưu và gửi duyệt'}</button><span class="muted">Nháp: còn sửa được. Gửi duyệt: chuyển Trưởng TVGS duyệt, không sửa được nữa.</span></div></div>`);
+if(isEdit&&!canEditLog(x))return alert('Báo cáo ngày này không còn được phép sửa.');
+const logProjects=isEdit?(db.projects||[]).filter(p=>p.id===x.projectId):logProjectsForCreate();if(!logProjects.length)return alert('Tài khoản chưa được cấp quyền "Thêm" báo cáo ngày ở công trình nào.');
+const initPid=x.projectId||(logProjects[0]&&logProjects[0].id)||'';const initConfirm=canApproveIn(initPid);
+currentLogPackage=null;
+if(typeof loadBiddingPackages==='function'){
+ try{
+  const packages=await loadBiddingPackages(initPid);
+  if(packages.length&&typeof fetchTeam==='function'){
+   const rows=await fetchTeam(initPid,{sync:false});const mine=rows.find(r=>r.is_me);
+   if(mine?.bidding_package_id)currentLogPackage=packages.find(p=>p.id===mine.bidding_package_id)||null;
+  }
+ }catch(_){}
 }
+const hasPackageItems=!!(currentLogPackage&&(currentLogPackage.contractors||[]).some(c=>(c.items||[]).length));
+const itemFieldsHtml=hasPackageItems
+ ?'<div><label>&#x0110;ơn v&#x1ecb; tc (nh&#x00e0; th&#x1ea7;u trong g&#x00f3;i &quot;'+esc(currentLogPackage.name)+'&quot;)</label><select id="lcontractorunit" onchange="syncLogItemCategoryOptions()">'+currentLogPackage.contractors.map(c=>'<option value="'+esc(c.name)+'"'+(c.name===x.contractorUnit?' selected':'')+'>'+esc(c.name)+'</option>').join('')+(x.contractorUnit&&!currentLogPackage.contractors.some(c=>c.name===x.contractorUnit)?'<option value="'+esc(x.contractorUnit)+'" selected>'+esc(x.contractorUnit)+' (cũ)</option>':'')+'</select></div><div><label>H&#x1ea1;ng m&#x1ee5;c</label><select id="litemcategory"></select></div>'
+ :'<div><label>&#x0110;ơn v&#x1ecb; tc</label><input id="lcontractorunit" value="'+esc(x.contractorUnit||'')+'"></div><div><label>H&#x1ea1;ng m&#x1ee5;c</label><input id="litemcategory" value="'+esc(x.itemCategory||'')+'"></div>';
+openModal(isEdit?'Sửa báo cáo ngày':'Lập báo cáo ngày',`${isEdit?reviewBlockHtml(x,{history:false}):''}<div class="row"><div><label>C&#x00f4;ng tr&#x00ec;nh</label><select id="lproj" onchange="updateLogSubmitLabel()">${logProjects.map(p=>`<option value="${p.id}" ${p.id===x.projectId?'selected':''}>${esc(p.code)} - ${esc(p.name)}</option>`).join('')}</select></div><div><label>Ng&#x00e0;y</label><input id="ldate" type="date" value="${x.date||new Date().toISOString().slice(0,10)}"></div><div><label>Ca l&#224;m vi&#7879;c</label><select id="lshift">${SHIFT_OPTIONS.map(([v,t])=>`<option value="${v}" ${(x.shift||'CA1')===v?'selected':''}>${t}</option>`).join('')}</select></div>${itemFieldsHtml}<div class="full"><label>C&#x00f4;ng vi&#x1ec7;c</label><textarea id="lwork" rows="3">${esc(x.work||'')}</textarea></div><div><label>Cbkt</label><input id="lcbkt" type="number" value="${x.technicalStaffCount??0}"></div><div class="full"><label>Nh&#x00e2;n l&#x1ef1;c (theo lo&#x1ea1;i th&#x1ee3)</label><div id="lworkersBox">${resourceRowsHtml('lworkers',x.workerItems)}</div><button type="button" onclick="addResourceRow('lworkers')">+ Th&#x00eam lo&#x1ea1;i</button></div><div class="full"><label>M&#x00e1;y m&#x00f3;c (theo lo&#x1ea1;i m&#x00e1;y)</label><div id="lmachinesBox">${resourceRowsHtml('lmachines',x.machineItems)}</div><button type="button" onclick="addResourceRow('lmachines')">+ Th&#x00eam lo&#x1ea1;i</button></div><div><label>Thời tiết</label><input id="lweather" list="weatherList" value="${esc(x.weather||'')}" placeholder="Nắng / Mưa / Âm u..."><datalist id="weatherList"><option>Nắng</option><option>Nắng nóng</option><option>Mây</option><option>Mưa nhỏ</option><option>Mưa to</option><option>Âm u</option></datalist></div><div><label>Ghi ch&#x00fa</label><textarea id="lnote" rows="2">${esc(x.note||'')}</textarea></div><div class="full"><label>Ki&#x1ebf;n ngh&#x1ecb;</label><textarea id="lrecommendation" rows="2">${esc(x.recommendation||'')}</textarea></div><div class="full"><label>&#x1ea2;nh hi&#x1ec7;n tr&#x01b0;&#x1edd;ng</label><input id="lphotos" type="file" accept="image/jpeg,image/png,image/webp" multiple><div class="muted">C&#x00f3; th&#x1ec3; th&#x00eam &#x1ea3;nh khi ch&#x1ec9;nh s&#x1eeda nh&#x1ead;t k&#x00fd.</div></div><div class="full"><label>T&#x00e0;i li&#x1ec7;u k&#x00e8;m theo</label><input id="ldocuments" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,image/*" multiple><div class="muted">Cho ph&#x00e9;p t&#x1ea3;i bi&#x00ean b&#x1ea3;n, th&#x01b0; k&#x1ef9; thu&#x1ead;t ho&#x1eb7;c t&#x00e0;i li&#x1ec7;u li&#x00ean quan.</div></div><div class="full toolbar"><button class="primary" onclick="saveLog('${lid}',false)">${isEdit?'Lưu thay đổi':'Lưu nháp'}</button><button id="lsubmitbtn" onclick="saveLog('${lid}',true)">${initConfirm?'Lưu và xác nhận':'Lưu và gửi duyệt'}</button><span class="muted" id="lsubmithint">${initConfirm?'Xác nhận: bạn có quyền Duyệt tại công trình này nên chuyển thẳng Đã duyệt, không qua Chờ duyệt.':'Nháp: còn sửa được. Gửi duyệt: chuyển Trưởng TVGS duyệt, không sửa được nữa.'}</span></div></div>`);
+if(hasPackageItems)syncLogItemCategoryOptions(x.itemCategory||'');
+}
+function syncLogItemCategoryOptions(preselect){
+ const contractorSel=document.getElementById('lcontractorunit');const itemSel=document.getElementById('litemcategory');
+ if(!contractorSel||!itemSel||!currentLogPackage)return;
+ const c=(currentLogPackage.contractors||[]).find(v=>v.name===contractorSel.value);
+ const items=c?.items||[];
+ itemSel.innerHTML=items.map(it=>'<option value="'+esc(it.name)+'">'+esc(it.name)+(it.unit?' ('+esc(it.unit)+')':'')+'</option>').join('')+(preselect&&!items.some(it=>it.name===preselect)?'<option value="'+esc(preselect)+'" selected>'+esc(preselect)+' (cũ)</option>':'');
+ if(preselect&&items.some(it=>it.name===preselect))itemSel.value=preselect;
+}
+function updateLogSubmitLabel(){const btn=document.getElementById('lsubmitbtn');const hint=document.getElementById('lsubmithint');if(!btn)return;const pid=document.getElementById('lproj')?.value||'';const isConfirm=canApproveIn(pid);btn.textContent=isConfirm?'Lưu và xác nhận':'Lưu và gửi duyệt';if(hint)hint.textContent=isConfirm?'Xác nhận: bạn có quyền Duyệt tại công trình này nên chuyển thẳng Đã duyệt, không qua Chờ duyệt.':'Nháp: còn sửa được. Gửi duyệt: chuyển Trưởng TVGS duyệt, không sửa được nữa.'}
 async function saveLog(lid='',submitAfter=false){
-if(!canEditDailyLog())return alert('Bạn không có quyền sửa hoặc lập nhật ký.');
-let existing=db.logs.find(l=>l.id===lid);if(existing&&!canEditLog(existing))return alert('Nhật ký không còn được phép sửa.');
+if(!canEditDailyLog())return alert('Bạn không có quyền sửa hoặc lập báo cáo ngày.');
+let existing=db.logs.find(l=>l.id===lid);if(existing&&!canEditLog(existing))return alert('Báo cáo ngày không còn được phép sửa.');
 let photos=[...(existing?.photos||[])];const photoFiles=[...(document.getElementById('lphotos')?.files||[])];
-if(photoFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>5*1024*1024))return alert('Ảnh phải là JPEG, PNG hoặc WebP, tối đa 5 MB mỗi ảnh.');
-for(const f of photoFiles)photos.push({name:f.name,data:await toDataURL(f)});
+if(photoFiles.some(f=>!['image/jpeg','image/png','image/webp'].includes(f.type)||f.size>20*1024*1024))return alert('Ảnh phải là JPEG, PNG hoặc WebP, tối đa 20 MB trước khi tối ưu.');
 let documents=[...(existing?.documents||[])];const docFiles=[...(document.getElementById('ldocuments')?.files||[])];
-for(const f of docFiles){if(f.size>15*1024*1024)return alert('Tài liệu tối đa 15 MB mỗi tệp.');documents.push({name:f.name,type:f.type,size:f.size,data:await toDataURL(f),uploadedAt:new Date().toISOString()})}
+for(const f of docFiles)if(f.size>25*1024*1024)return alert('Tài liệu tối đa 25 MB mỗi tệp.');
 const shift=document.getElementById('lshift')?.value||'CA1';
-const dupLog=db.logs.find(l=>l.id!==existing?.id&&l.projectId===lproj.value&&l.date===ldate.value&&String(l.shift||'CA1')===shift);if(dupLog)return alert('Đã có nhật ký '+shiftLabel(shift)+' ngày '+ldate.value+' của công trình này. Chọn ca khác hoặc mở nhật ký đó để sửa.');
-const data={projectId:lproj.value,date:ldate.value,shift,work:lwork.value,weather:(document.getElementById('lweather')?.value||'').trim(),workers:+lworkers.value,machines:+lmachines.value,note:lnote.value,photos,documents,status:existing?.status||'DRAFT',createdBy:existing?.createdBy||(typeof getAuthUser==='function'?(getAuthUser()?.full_name||db.role):db.role),createdById:existing?.createdById||(typeof getAuthUser==='function'?(getAuthUser()?.id||''):''),version:(existing?.version||0)+1,updatedAt:new Date().toISOString()};
+const actor=typeof getAuthUser==='function'?getAuthUser():null;const actorId=existing?.createdById||(actor?.id||'');
+const dupLog=db.logs.find(l=>l.id!==existing?.id&&l.projectId===lproj.value&&l.date===ldate.value&&String(l.shift||'CA1')===shift&&(l.createdById||'')===actorId);if(dupLog)return alert('Tài khoản này đã có báo cáo ngày '+shiftLabel(shift)+' ngày '+ldate.value+'. Hãy mở báo cáo đó để sửa.');
+const workerItems=readResourceRows('lworkers'),machineItems=readResourceRows('lmachines');
+const workers=workerItems.reduce((s,x)=>s+x.count,0),machines=machineItems.reduce((s,x)=>s+x.count,0);
+const data={projectId:lproj.value,date:ldate.value,shift,work:lwork.value,weather:(document.getElementById('lweather')?.value||'').trim(),workers,machines,workerItems,machineItems,note:lnote.value,contractorUnit:(document.getElementById('lcontractorunit')?.value||'').trim(),itemCategory:(document.getElementById('litemcategory')?.value||'').trim(),technicalStaffCount:+(document.getElementById('lcbkt')?.value||0),recommendation:(document.getElementById('lrecommendation')?.value||'').trim(),photos,documents,status:existing?.status||'DRAFT',createdBy:existing?.createdBy||(actor?.full_name||db.role),createdById:actorId,version:(existing?.version||0)+1,updatedAt:new Date().toISOString()};
 if(existing){Object.assign(existing,data);audit('UPDATE','daily_log',existing.id,`v${existing.version}`);queueSync('daily_log',existing.id,'UPDATE',data)}else{const x={id:id(),...data,createdAt:new Date().toISOString(),version:1};db.logs.unshift(x);queueSync('daily_log',x.id,'CREATE',data);audit('CREATE_AND_CONFIRM','daily_log',x.id,'v1')}
 const savedId=existing?.id||db.logs[0]?.id;
-closeModal();save();if(navigator.onLine&&typeof getAuthToken==='function'&&getAuthToken()&&window.syncPendingDailyLogs)await window.syncPendingDailyLogs();
-if(submitAfter){const l=db.logs.find(v=>v.id===savedId);if(l?.serverId&&l.status==='DRAFT')await logAction(l.id,'submit',true);else if(l&&!l.serverId)alert('Nhật ký đã lưu trên thiết bị nhưng chưa lên máy chủ (mất mạng?). Sẽ gửi duyệt được sau khi đồng bộ.')}
+const queuedEntries=[...photoFiles.map(file=>({file,kind:'PHOTO',category:'Ảnh hiện trường'})),...docFiles.map(file=>({file,kind:'DOCUMENT',category:'Tài liệu báo cáo ngày'}))];if(queuedEntries.length)await queueOfflineFiles('daily_log',savedId,queuedEntries);
+closeModal();save();if(typeof getAuthToken==='function'&&getAuthToken()&&window.syncPendingDailyLogs)await window.syncPendingDailyLogs();
+if(submitAfter){const l=db.logs.find(v=>v.id===savedId);if(l?.serverId&&l.status==='DRAFT')await logAction(l.id,canApproveIn(l.projectId)?'confirm':'submit',true);else if(l&&!l.serverId)alert('Báo cáo ngày đã lưu trên thiết bị nhưng chưa lên máy chủ (mất mạng?). Sẽ gửi duyệt được sau khi đồng bộ.')}
 if(currentProjectId)renderProjectDetail();
 }
 function exportDailyLog(lid){
@@ -47,29 +94,29 @@ const x=db.logs.find(l=>l.id===lid);
 if(!x)return;
 const project=db.projects.find(p=>p.id===x.projectId)||{};
 const lines=[
-'VINA-SUPERVISION - NHẬT KÝ CÔNG TRÌNH',
+'VINA-SUPERVISION - BÁO CÁO NGÀY CÔNG TRÌNH',
 `Công trình: ${project.code||''} - ${project.name||''}`,
 `Ngày: ${x.date||''} — ${shiftLabel(x.shift)}`,
 `Người lập: ${x.createdBy||'Chưa xác định'}`,
 `Công việc: ${x.work||''}`,
-`Nhân lực: ${x.workers||0}`,
-`Máy móc: ${x.machines||0}`,
+`Nhân lực: ${x.workerItems&&x.workerItems.length?x.workerItems.map(i=>i.type+': '+i.count).join(', '):(x.workers||0)}`,
+`Máy móc: ${x.machineItems&&x.machineItems.length?x.machineItems.map(i=>i.type+': '+i.count).join(', '):(x.machines||0)}`,
 `Thời tiết: ${x.weather||''}`,
 `Trạng thái: ${LOG_STATUS[x.status]||x.status||''}`,
 `Ghi chú: ${x.note||''}`
 ];
 const text='\ufeff'+lines.join('\r\n');
 const safe=String(project.code||'cong-trinh').replace(/[^\w-]+/g,'-');
-const file=new File([text],`nhat-ky-${safe}-${x.date||'export'}-${x.shift||'CA1'}.txt`,{type:'text/plain;charset=utf-8'});
+const file=new File([text],`bao-cao-ngay-${safe}-${x.date||'export'}-${x.shift||'CA1'}.txt`,{type:'text/plain;charset=utf-8'});
 const download=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=file.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
- navigator.share({title:'Nhật ký công trình',text:`Nhật ký ${project.name||''} ngày ${x.date||''}`,files:[file]}).catch(()=>download());
+ navigator.share({title:'Báo cáo ngày công trình',text:`Báo cáo ngày ${project.name||''} ngày ${x.date||''}`,files:[file]}).catch(()=>download());
 }else download();
 }
-function fillReportFromLogs(){const pid=document.getElementById('dproj')?.value||'';const logs=db.logs.filter(x=>x.projectId===pid);if(!logs.length)return alert('Chưa có nhật ký để tổng hợp.');const latest=logs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];const avg=logs.reduce((n,x)=>n+Number(x.workers||0),0)/logs.length;const planned=Number(document.getElementById('dplanned')?.value||0);const actual=Number(latest.progress||0);document.getElementById('dactual').value=actual;document.getElementById('dmanpower').value=Math.round(avg);document.getElementById('dschedule').value=actual>planned?'AHEAD':(actual<planned?'DELAYED':'ON_TRACK')}
+function fillReportFromLogs(){const pid=document.getElementById('dproj')?.value||'';const logs=db.logs.filter(x=>x.projectId===pid);if(!logs.length)return alert('Chưa có báo cáo ngày để tổng hợp.');const latest=logs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];const avg=logs.reduce((n,x)=>n+Number(x.workers||0),0)/logs.length;const planned=Number(document.getElementById('dplanned')?.value||0);const actual=Number(latest.progress||0);document.getElementById('dactual').value=actual;document.getElementById('dmanpower').value=Math.round(avg);document.getElementById('dschedule').value=actual>planned?'AHEAD':(actual<planned?'DELAYED':'ON_TRACK')}
 
 async function syncDailyLogsFromApi(){
-  if(!navigator.onLine || typeof apiGetDailyLogs!=='function' || !getAuthToken()) return;
+  if(!apiOnline() || typeof apiGetDailyLogs!=='function') return;
 
   try{
     // Lấy lại danh sách công trình từ PostgreSQL để làm nguồn chuẩn.

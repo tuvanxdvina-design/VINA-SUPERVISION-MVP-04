@@ -119,7 +119,7 @@ async function projectHealth(project, asOfText) {
   }
   out.logs = { last_date: lastLog, missing_days: started ? missing : [] };
   if (started && missing.length >= THRESHOLDS.logMissWarn) {
-    alerts.push(alert(missing.length >= THRESHOLDS.logMissCrit ? 'CRITICAL' : 'WARNING', 'LOGS_MISSING', `${missing.length} ngày thiếu nhật ký trong ${THRESHOLDS.logWindowDays} ngày qua`, 'Ngày: ' + missing.map(fmtVN).join(', ') + (lastLog ? ` · nhật ký gần nhất ${fmtVN(lastLog)}` : ' · chưa có nhật ký nào'), 'daily'));
+    alerts.push(alert(missing.length >= THRESHOLDS.logMissCrit ? 'CRITICAL' : 'WARNING', 'LOGS_MISSING', `${missing.length} ngày thiếu báo cáo ngày trong ${THRESHOLDS.logWindowDays} ngày qua`, 'Ngày: ' + missing.map(fmtVN).join(', ') + (lastLog ? ` · báo cáo ngày gần nhất ${fmtVN(lastLog)}` : ' · chưa có báo cáo ngày nào'), 'daily'));
   }
 
   // ---- 3. Chờ duyệt quá hạn (chỉ đánh giá theo thời điểm hiện tại) ----
@@ -131,7 +131,7 @@ async function projectHealth(project, asOfText) {
     const oldestDays = pend.oldest ? Math.floor((Date.now() - new Date(pend.oldest).getTime()) / DAY) : 0;
     out.approvals = { pending: pend.n, oldest_days: oldestDays };
     if (pend.n && oldestDays > THRESHOLDS.approvalWarnDays) {
-      alerts.push(alert(oldestDays > THRESHOLDS.approvalCritDays ? 'CRITICAL' : 'WARNING', 'APPROVAL_AGING', `${pend.n} bản chờ duyệt, lâu nhất ${oldestDays} ngày`, 'Báo cáo/hồ sơ/nhật ký đã gửi nhưng Trưởng TVGS chưa xử lý.', 'inbox'));
+      alerts.push(alert(oldestDays > THRESHOLDS.approvalCritDays ? 'CRITICAL' : 'WARNING', 'APPROVAL_AGING', `${pend.n} bản chờ duyệt, lâu nhất ${oldestDays} ngày`, 'Báo cáo/hồ sơ/báo cáo ngày đã gửi nhưng Trưởng TVGS chưa xử lý.', 'inbox'));
     }
   }
 

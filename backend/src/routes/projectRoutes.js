@@ -16,7 +16,9 @@ function validProject(data) {
     typeof data.name === 'string' && data.name.trim() &&
     typeof data.contract_no === 'string' && data.contract_no.trim() &&
     (data.id === undefined || uuidPattern.test(data.id)) &&
-    (data.progress === undefined || (Number.isFinite(Number(data.progress)) && Number(data.progress) >= 0 && Number(data.progress) <= 100));
+    (data.progress === undefined || (Number.isFinite(Number(data.progress)) && Number(data.progress) >= 0 && Number(data.progress) <= 100)) &&
+    (data.contract_duration_days == null || (Number.isInteger(Number(data.contract_duration_days)) && Number(data.contract_duration_days) > 0)) &&
+    (data.contractor_duration_days == null || (Number.isInteger(Number(data.contractor_duration_days)) && Number(data.contractor_duration_days) > 0));
 }
 
 function sendError(res, error) {
@@ -75,6 +77,30 @@ router.patch('/:id', access.projectParam, rbac.checkRole(editors), async (req, r
   } catch (error) {
     sendError(res, error);
   }
+});
+
+const MAX_PROJECT_FILE = 25 * 1024 * 1024;
+router.post('/:id/files', access.projectParam, rbac.checkRole(editors), express.raw({ type: () => true, limit: MAX_PROJECT_FILE + 1024 }), async (req, res) => {
+  try {
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Tệp rỗng' });
+    if (req.body.length > MAX_PROJECT_FILE) return res.status(413).json({ error: 'Mỗi tệp công trình tối đa 25 MB' });
+    const category = String(req.query.category || 'PROJECT_DOCUMENT').slice(0, 80);
+    const name = String(req.query.name || 'tai-lieu').slice(0, 255);
+    const file = await projectService.addFile(req.params.id, category, name, String(req.headers['content-type'] || 'application/octet-stream').slice(0, 120), req.body, req.user.userId);
+    if (file.created) await req.audit('project_files', file.id, 'CREATE', null, { project_id: req.params.id, category, name, size: req.body.length }, req.user.userId);
+    res.status(file.created ? 201 : 200).json(file);
+  } catch (error) {
+    if (error.type === 'entity.too.large') return res.status(413).json({ error: 'Mỗi tệp công trình tối đa 25 MB' });
+    sendError(res, error);
+  }
+});
+
+router.get('/:id/files/:fileId', access.projectParam, async (req, res) => {
+  try {
+    const file = await projectService.getFile(req.params.id, req.params.fileId);
+    if (!file) return res.status(404).json({ error: 'Không tìm thấy tệp' });
+    sendStoredFile(res, file, req.query.download);
+  } catch (error) { sendError(res, error); }
 });
 
 

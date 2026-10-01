@@ -4,6 +4,7 @@ const rbac = require('../middleware/rbac');
 const issueService = require('../services/issueService');
 const access = require('../middleware/projectAccess');
 const pool = require('../utils/db');
+const { sendStoredFile } = require('../utils/fileSafety');
 
 const router = express.Router();
 
@@ -17,6 +18,12 @@ async function memberPermission(userId, projectId) {
 async function canCreateIssue(userId, projectId){const a=await memberPermission(userId,projectId);return a.permissions.includes('CREATE')||a.permissions.includes('EDIT')}
 async function canEditIssue(userId, issue){const a=await memberPermission(userId,issue.project_id);if(['ADMIN','DIRECTOR'].includes(a.role))return true;if(['RESOLVED','CLOSED','SIGNED','ISSUED'].includes(String(issue.status||'').toUpperCase()))return a.permissions.includes('EDIT');return (issue.created_by===userId&&a.permissions.includes('CREATE'))||a.permissions.includes('EDIT')}
 
+function detailsError(details) {
+  if (details === undefined) return '';
+  if (details === null || typeof details !== 'object' || Array.isArray(details)) return 'Thông tin chi tiết không hợp lệ';
+  if (JSON.stringify(details).length > 3000000) return 'Thông tin chi tiết quá lớn';
+  return '';
+}
 
 router.use(authMiddleware.verifyToken);
 router.use('/:id', access.record('issues'));
@@ -52,6 +59,8 @@ router.post('/', access.body, async (req, res) => {
     if (typeof req.body.title !== 'string' || !req.body.title.trim()) {
       return res.status(400).json({ error: 'Cần nhập nội dung vấn đề' });
     }
+    const detailError = detailsError(req.body.details);
+    if (detailError) return res.status(400).json({ error: detailError });
     const { issue, created } = await issueService.createIssue({
       ...req.body,
       created_by: req.user.userId
@@ -73,9 +82,52 @@ router.patch('/:id', async (req, res) => {
     const current = await issueService.getIssueById(req.params.id);
     if (!current) return res.status(404).json({ error: 'Không tìm thấy vấn đề' });
     if (!(await canEditIssue(req.user.userId, current))) return res.status(403).json({ error: 'Chỉ người lập khi văn bản chưa đóng hoặc người được cấp quyền Sửa mới được cập nhật' });
+    const detailError = detailsError(req.body.details);
+    if (detailError) return res.status(400).json({ error: detailError });
     const issue = await issueService.updateIssue(req.params.id, req.body);
     await req.audit('issues', req.params.id, 'UPDATE', null, issue, req.user.userId);
     res.json(issue);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Tệp đính kèm (bản ký/scan) — quyền truy cập công trình đã được kiểm ở router.use('/:id', access.record('issues')) phía trên.
+const MAX_ISSUE_FILE = 15 * 1024 * 1024;
+
+// GET /api/issues/:id/files
+router.get('/:id/files', async (req, res) => {
+  try {
+    res.json(await issueService.listFiles(req.params.id));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/issues/:id/files?name=...
+router.post('/:id/files', express.raw({ type: () => true, limit: MAX_ISSUE_FILE + 1024 }), async (req, res) => {
+  try {
+    const current = await issueService.getIssueById(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Không tìm thấy vấn đề' });
+    if (!(await canEditIssue(req.user.userId, current))) return res.status(403).json({ error: 'Chỉ người lập khi văn bản chưa đóng hoặc người được cấp quyền Sửa mới được tải tệp' });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Tệp rỗng' });
+    if (req.body.length > MAX_ISSUE_FILE) return res.status(413).json({ error: 'Tệp đính kèm tối đa 15 MB' });
+    const name = String(req.query.name || 'ban-ky').slice(0, 255);
+    const file = await issueService.addFile(current, 'SIGNED', name, String(req.headers['content-type'] || 'application/octet-stream').slice(0, 120), req.body, req.user.userId);
+    if (file.created) await req.audit('issue_files', file.id, 'CREATE', null, { issue_id: req.params.id, name, size: req.body.length }, req.user.userId);
+    res.status(file.created ? 201 : 200).json(file);
+  } catch (err) {
+    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Tệp đính kèm tối đa 15 MB' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/issues/:id/files/:fileId
+router.get('/:id/files/:fileId', async (req, res) => {
+  try {
+    const file = await issueService.getFile(req.params.id, req.params.fileId);
+    if (!file) return res.status(404).json({ error: 'Không tìm thấy tệp' });
+    sendStoredFile(res, file, req.query.download);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

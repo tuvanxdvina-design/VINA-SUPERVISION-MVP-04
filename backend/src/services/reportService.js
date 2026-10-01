@@ -44,7 +44,7 @@ async function compile(projectId, type, from, to) {
 
   const logs = (await pool.query(`
     SELECT dl.id, TO_CHAR(dl.log_date,'YYYY-MM-DD') AS date, dl.shift, dl.work_summary AS work, dl.weather,
-           dl.worker_count AS workers, dl.machine_count AS machines, dl.note, dl.status,
+           dl.worker_count AS workers, dl.machine_count AS machines, dl.worker_items, dl.machine_items, dl.note, dl.status,
            COALESCE(dl.author_name, u.full_name) AS created_by, a.full_name AS approved_by,
            (SELECT COUNT(*)::int FROM attachments x WHERE x.daily_log_id = dl.id) AS photos
     FROM daily_logs dl LEFT JOIN users u ON u.id = dl.created_by LEFT JOIN users a ON a.id = dl.approved_by
@@ -68,6 +68,12 @@ async function compile(projectId, type, from, to) {
     photos: logs.reduce((s, l) => s + Number(l.photos || 0), 0),
     by_status: logs.reduce((m, l) => (m[l.status] = (m[l.status] || 0) + 1, m), {})
   };
+  stats.by_inspector = Object.values(logs.reduce((grouped, log) => {
+    const name = log.created_by || 'Chưa xác định';
+    const item = grouped[name] = grouped[name] || { name, log_count: 0, workers: 0, machines: 0, photos: 0 };
+    item.log_count += 1;item.workers += Number(log.workers || 0);item.machines += Number(log.machines || 0);item.photos += Number(log.photos || 0);
+    return grouped;
+  }, {})).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
   const issuesOpened = (await pool.query(`
     SELECT issue_code, title, severity, status, source_type, TO_CHAR(created_at AT TIME ZONE 'Asia/Ho_Chi_Minh','YYYY-MM-DD') AS created

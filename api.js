@@ -1,7 +1,7 @@
 // The mobile HTTPS entry point serves the UI and API from one origin.
-// Port 8080 remains available for the existing local development launcher.
-const API_BASE = window.location.port === '8080'
-  ? `${window.location.protocol}//${window.location.hostname}:3001/api`
+// Port 8082 is the isolated local launcher for MVP-04.
+const API_BASE = window.location.port === '8082'
+  ? `${window.location.protocol}//${window.location.hostname}:3003/api`
   : '/api';
 const AUTH_KEY = 'vina_supervision_auth';
 
@@ -112,8 +112,17 @@ function mapProjectFromApi(p) {
     contractorContractDate: p.contractor_contract_date ? String(p.contractor_contract_date).slice(0, 10) : '',
     contractorContractValue: p.contractor_contract_value ?? null,
     contractorContractContent: p.contractor_contract_content || '',
+    consultantContractType: p.consultant_contract_type || '',
+    consultantPriceType: p.consultant_price_type || '',
+    contractDurationDays: p.contract_duration_days == null ? null : Number(p.contract_duration_days),
+    contractorContractType: p.contractor_contract_type || '',
+    contractorPriceType: p.contractor_price_type || '',
+    contractorStartDate: p.contractor_start_date ? String(p.contractor_start_date).slice(0, 10) : '',
+    contractorEndDate: p.contractor_end_date ? String(p.contractor_end_date).slice(0, 10) : '',
+    contractorDurationDays: p.contractor_duration_days == null ? null : Number(p.contractor_duration_days),
     createdAt: p.created_at || '',
-    updatedAt: p.updated_at || ''
+    updatedAt: p.updated_at || '',
+    files: (Array.isArray(p.files)?p.files:[]).map(f=>({id:f.id,category:f.category,name:f.file_name,type:f.file_type,size:Number(f.file_size||0),uploadedAt:f.uploaded_at}))
   };
 }
 
@@ -144,6 +153,14 @@ function mapLocalProjectToApiData(data, id) {
     contractor_contract_date: data.contractorContractDate || null,
     contractor_contract_value: data.contractorContractValue ?? null,
     contractor_contract_content: data.contractorContractContent || null,
+    consultant_contract_type: data.consultantContractType || null,
+    consultant_price_type: data.consultantPriceType || null,
+    contract_duration_days: data.contractDurationDays ?? null,
+    contractor_contract_type: data.contractorContractType || null,
+    contractor_price_type: data.contractorPriceType || null,
+    contractor_start_date: data.contractorStartDate || null,
+    contractor_end_date: data.contractorEndDate || null,
+    contractor_duration_days: data.contractorDurationDays ?? null,
     progress: Number(data.progress || 0),
     status: data.status || 'ACTIVE'
   };
@@ -170,6 +187,12 @@ function mapDailyLogFromApi(log) {
     shift: log.shift || 'CA1',
     work: log.work_summary || '',
     weather: log.weather || '',
+    contractorUnit: log.contractor_unit || '',
+    itemCategory: log.item_category || '',
+    technicalStaffCount: Number(log.technical_staff_count || 0),
+    recommendation: log.recommendation || '',
+    workerItems: Array.isArray(log.worker_items) ? log.worker_items : [],
+    machineItems: Array.isArray(log.machine_items) ? log.machine_items : [],
     fileCount: Number(log.file_count || 0),
     workers: Number(log.worker_count || 0),
     machines: Number(log.machine_count || 0),
@@ -259,7 +282,13 @@ async function apiCreateDailyLog(data) {
       weather: data.weather || null,
       worker_count: Number(data.workers || 0),
       machine_count: Number(data.machines || 0),
-      note: data.note || null
+      note: data.note || null,
+      contractor_unit: data.contractorUnit || null,
+      item_category: data.itemCategory || null,
+      technical_staff_count: data.technicalStaffCount || null,
+      recommendation: data.recommendation || null,
+      worker_items: Array.isArray(data.workerItems) ? data.workerItems : null,
+      machine_items: Array.isArray(data.machineItems) ? data.machineItems : null
     })
   });
 }
@@ -273,6 +302,12 @@ async function apiUpdateDailyLog(id, data) {
       weather: data.weather || null,
       worker_count: Number(data.workers || 0),
       machine_count: Number(data.machines || 0),
+      contractor_unit: data.contractorUnit || null,
+      item_category: data.itemCategory || null,
+      technical_staff_count: data.technicalStaffCount || null,
+      recommendation: data.recommendation || null,
+      worker_items: Array.isArray(data.workerItems) ? data.workerItems : null,
+      machine_items: Array.isArray(data.machineItems) ? data.machineItems : null,
       note: data.note || null
     })
   });
@@ -317,7 +352,13 @@ function mapLocalLogToApiData(data) {
     machines: Number(data.machines || 0),
     note: data.note || '',
     shift: data.shift || null,
-    weather: data.weather || null
+    weather: data.weather || null,
+    contractorUnit: data.contractorUnit || null,
+    itemCategory: data.itemCategory || null,
+    technicalStaffCount: data.technicalStaffCount || null,
+    recommendation: data.recommendation || null,
+    workerItems: Array.isArray(data.workerItems) ? data.workerItems : null,
+    machineItems: Array.isArray(data.machineItems) ? data.machineItems : null
   };
 }
 
@@ -325,7 +366,7 @@ let projectSyncRunning = false;
 let projectSyncAgain = false;
 
 async function syncPendingProjects() {
-  if (!navigator.onLine || !getAuthToken()) return;
+  if (!getAuthToken()) return;
   if (projectSyncRunning) {
     projectSyncAgain = true;
     return;
@@ -349,6 +390,7 @@ async function syncPendingProjects() {
           item.lastError = 'Unsupported project operation: ' + item.operation;
           continue;
         }
+        if(typeof syncQueuedProjectFiles==='function')await syncQueuedProjectFiles(item.recordId);
         item.status = 'SYNCED';
         item.syncedAt = new Date().toISOString();
         delete item.lastError;
@@ -397,10 +439,36 @@ async function uploadLogAttachments(local, serverId) {
     if (!res.ok) { let m = 'HTTP ' + res.status; try { m = (await res.json()).error || m; } catch (_) {} throw new Error('Tài liệu "' + doc.name + '": ' + m); }
     doc.uploaded = true; delete doc.data;
   }
+  if(typeof queuedFiles==='function'){
+    const pending=await queuedFiles('daily_log',local.id);
+    for(const file of pending){
+      const route=file.kind==='PHOTO'?'/attachments-binary':'/files';
+      const res=await fetch(API_BASE+'/daily-logs/'+encodeURIComponent(serverId)+route+'?name='+encodeURIComponent(file.name),{method:'POST',headers:{Authorization:'Bearer '+getAuthToken(),'Content-Type':file.type||'application/octet-stream'},body:file.blob});
+      if(!res.ok){let m='HTTP '+res.status;try{m=(await res.json()).error||m}catch(_){}throw new Error('Tệp "'+file.name+'": '+m)}
+      await removeQueuedFile(file.id);
+    }
+  }
+}
+
+async function syncQueuedProjectFiles(projectId){
+ if(typeof queuedFiles!=='function')return;const pending=await queuedFiles('project',projectId);
+ for(const file of pending.filter(f=>f.kind!=='PROGRESS_BASELINE')){
+  const res=await fetch(API_BASE+'/projects/'+encodeURIComponent(projectId)+'/files?category='+encodeURIComponent(file.category)+'&name='+encodeURIComponent(file.name),{method:'POST',headers:{Authorization:'Bearer '+getAuthToken(),'Content-Type':file.type||'application/octet-stream'},body:file.blob});
+  if(!res.ok){let m='HTTP '+res.status;try{m=(await res.json()).error||m}catch(_){}throw new Error('Tệp "'+file.name+'": '+m)}
+  await removeQueuedFile(file.id);
+ }
+}
+// Bản ký/tài liệu đính kèm văn bản chất lượng đã hàng đợi (IndexedDB, chờ có serverId) — tải lên issue_files.
+async function syncQueuedIssueFiles(issueId){
+ if(typeof queuedFiles!=='function')return;const pending=await queuedFiles('issue',issueId);
+ for(const file of pending){
+  const res=await fetch(API_BASE+'/issues/'+encodeURIComponent(issueId)+'/files?name='+encodeURIComponent(file.name),{method:'POST',headers:{Authorization:'Bearer '+getAuthToken(),'Content-Type':file.type||'application/octet-stream'},body:file.blob});
+  if(!res.ok){let m='HTTP '+res.status;try{m=(await res.json()).error||m}catch(_){}throw new Error('Tệp "'+file.name+'": '+m)}
+  await removeQueuedFile(file.id);
+ }
 }
 
 async function syncPendingDailyLogs() {
-  if (!navigator.onLine) return;
   if (!getAuthToken()) return;
   await syncPendingProjects();
   if (dailyLogSyncRunning) {
@@ -529,21 +597,25 @@ async function syncPendingDailyLogs() {
 }
 
 function mapIssueFromApi(issue) {
+  let details = issue.details || {};
+  if (typeof details === 'string') { try { details = JSON.parse(details); } catch (_) { details = {}; } }
+  const status = issue.status === 'RESOLVED' ? 'CLOSED' : (details.status || 'OPEN');
   return {
     id: issue.id,
     serverId: issue.id,
+    ...details,
     code: issue.issue_code || ('VĐ-' + issue.id.slice(0, 8)),
     projectId: issue.project_id,
-    title: issue.title || '',
-    detail: issue.description || '',
-    priority: issue.severity || '',
-    due: issue.due_date_text || (issue.due_date ? String(issue.due_date).slice(0, 10) : ''),
-    status: issue.status === 'RESOLVED' ? 'CLOSED' : 'OPEN',
-    createdAt: issue.created_at || '',
-    closedAt: issue.resolved_at || '',
-    createdBy: issue.created_by_name || issue.created_by || '',
-    createdById: issue.created_by || '',
-    sourceType: issue.source_type || issue.sourceType || ''
+    title: issue.title || details.title || '',
+    detail: issue.description || details.detail || '',
+    priority: issue.severity || details.priority || '',
+    due: issue.due_date_text || details.due || (issue.due_date ? String(issue.due_date).slice(0, 10) : ''),
+    status,
+    createdAt: issue.created_at || details.createdAt || '',
+    closedAt: issue.resolved_at || details.closedAt || '',
+    createdBy: issue.created_by_name || details.createdBy || issue.created_by || '',
+    createdById: issue.created_by || details.createdById || '',
+    sourceType: issue.source_type || details.sourceType || issue.sourceType || ''
   };
 }
 
@@ -552,8 +624,15 @@ async function apiGetIssues(projectId) {
 }
 
 let issueSyncRunning = false;
+function issueDetailsPayload(x = {}) {
+  const details = { ...x };
+  if (details.signedFile?.data) details.signedFile = { ...details.signedFile, data: undefined, storedOnDeviceOnly: true };
+  delete details.serverId;
+  delete details.createdById;
+  return details;
+}
 async function syncPendingIssues() {
-  if (!navigator.onLine || !getAuthToken()) return;
+  if (!apiOnline()) return;
   if (issueSyncRunning) return;
   issueSyncRunning = true;
   try {
@@ -567,7 +646,8 @@ async function syncPendingIssues() {
         if (item.operation === 'CREATE') {
           result = await apiRequest('/issues', { method: 'POST', body: JSON.stringify({
             id: item.recordId, project_id: x.projectId, issue_code: x.code,
-            title: x.title, description: x.detail, severity: x.priority, due_date: x.due || null, source_type: x.sourceType || null
+            title: x.title, description: x.detail, severity: x.priority, due_date: x.due || null, source_type: x.sourceType || null,
+            details: issueDetailsPayload({ ...x, id: item.recordId })
           }) });
         } else if (item.operation === 'UPDATE' && String(x.status || '').toUpperCase() === 'CLOSED') {
           result = await apiRequest('/issues/' + encodeURIComponent(item.recordId) + '/resolve', {
@@ -577,7 +657,10 @@ async function syncPendingIssues() {
           result = await apiRequest('/issues/' + encodeURIComponent(item.recordId) + '/reopen', { method: 'POST' });
         } else if (item.operation === 'UPDATE') {
           result = await apiRequest('/issues/' + encodeURIComponent(item.recordId), {
-            method: 'PATCH', body: JSON.stringify({ title: x.title, description: x.detail, severity: x.priority })
+            method: 'PATCH', body: JSON.stringify({
+              issue_code: x.code, title: x.title, description: x.detail, severity: x.priority,
+              due_date: x.due || null, source_type: x.sourceType || null, details: issueDetailsPayload(x)
+            })
           });
         } else {
           item.lastError = 'Thao tác văn bản chất lượng chưa được hỗ trợ';
@@ -585,6 +668,7 @@ async function syncPendingIssues() {
         }
         const local = db.issues.find(v => v.id === item.recordId);
         if (local && result?.id) local.serverId = result.id;
+        if (result?.id) await syncQueuedIssueFiles(result.id);
         item.status = 'SYNCED';
         delete item.lastError;
       } catch (error) {
@@ -600,7 +684,7 @@ async function syncPendingIssues() {
 }
 
 async function syncIssuesFromApi() {
-  if (!navigator.onLine || !getAuthToken()) return;
+  if (!apiOnline()) return;
   const pending = new Set((db.sync || []).filter(x => x.type === 'issue' && x.status === 'PENDING').map(x => x.recordId));
   for (const project of db.projects || []) {
     try {
@@ -638,4 +722,3 @@ window.apiGetDocuments = apiGetDocuments;
 window.mapDocumentFromApi = mapDocumentFromApi;
 window.syncPendingIssues = syncPendingIssues;
 window.syncIssuesFromApi = syncIssuesFromApi;
-
