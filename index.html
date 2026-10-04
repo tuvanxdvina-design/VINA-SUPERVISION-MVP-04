@@ -66,6 +66,24 @@ table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px s
   /* Thanh điều hướng dưới cuộn ngang (tới 10 mục): bóng mờ ở mép phải báo còn mục bị khuất, tự mất khi cuộn tới cuối. */
   nav{background:linear-gradient(to left,#fff 30%,#fff0) right/28px 100% no-repeat local,linear-gradient(to left,#10182833,#10182800) right/14px 100% no-repeat scroll}
 }
+/* Điện thoại: bảng danh sách → thẻ (nhãn do js/16-the-dien-thoai.js gắn). PC giữ dạng bảng. */
+@media(max-width:600px){
+  table.mcards{display:block;overflow:visible;border:0}
+  table.mcards thead,table.mcards tr.mc-head{display:none}
+  table.mcards tbody{display:block}
+  table.mcards tr{display:block;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:0 0 10px;box-shadow:0 1px 2px #1018280d}
+  table.mcards td{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;min-width:0;padding:6px 0;border:0;border-bottom:1px dashed var(--line);text-align:right;white-space:normal!important;overflow-wrap:anywhere}
+  table.mcards td:last-child{border-bottom:0}
+  table.mcards td::before{content:attr(data-label);flex:0 0 36%;text-align:left;color:var(--muted);font-size:13px;font-weight:600}
+  table.mcards td[data-label=""]{display:block;text-align:left}
+  table.mcards td[data-label=""]::before{display:none}
+  table.mcards td.mc-empty{display:none}
+  table.mcards td:first-child:not(.mc-actions){font-weight:600}
+  table.mcards td.mc-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-start;padding-top:10px}
+  table.mcards td.mc-actions button,table.mcards td.mc-actions a{flex:1 1 auto;margin:0}
+  table.mcards .mc-v{flex:1 1 auto;min-width:0}
+  .report-hub-tab{font-size:14px;padding:8px 12px}
+}
 /* Biểu mẫu dài trong hộp thoại: thanh nút Lưu/Gửi luôn bám đáy, không phải cuộn hết form mới thấy. */
 #mbody>.toolbar:last-child,#mbody>.row>.toolbar:last-child{position:sticky;bottom:-20px;background:#fff;padding:10px 0;margin-bottom:-6px;z-index:2;box-shadow:0 -8px 10px -10px #10182866}
 @media(max-width:600px){#mbody>.toolbar:last-child,#mbody>.row>.toolbar:last-child{bottom:-14px}}
@@ -333,6 +351,7 @@ table.rp{margin:4px 0 10px}table.rp th,table.rp td{border:1px solid var(--line);
 <script src="./js/05-glue-cuoi.js"></script>
 <script src="./js/glue-6-tinh-nang-3.js"></script>
 <script src="./js/15-cai-dat-ung-dung.js"></script>
+<script src="./js/16-the-dien-thoai.js"></script>
 
 </body>
 </html>
