@@ -158,3 +158,4 @@ Ba lỗi của bộ kiểm thử phát hiện trong đợt này (đã sửa, kh�
 
 ## Đợt 34 — bản 2026-10-14.12 (04/10)
 - Hồi quy **46/46** (ca mới: nháp vẫn tính thiếu, gửi rồi hết thiếu — đã chứng minh đỏ trên mã cũ).
+- Giao diện **25/25** (GD-25 mới: chạy đua đồng bộ — mã cũ xóa nhầm bản vừa lưu; nhóm ca báo cáo ngày chạy 3 lượt liên tiếp đều xanh).

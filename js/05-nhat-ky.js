@@ -157,11 +157,15 @@ async function syncDailyLogsFromApi(){
       if(!project?.id) continue;
 
       try{
+        // Chụp danh sách bản đã có mã máy chủ TRƯỚC khi tải: bản vừa lên máy chủ trong lúc đang tải (danh sách trả về
+        // chưa kịp có nó) không bị coi là "đã mất" và bị xóa nhầm khỏi thiết bị.
+        const knownBefore = new Set(db.logs.filter(x => x.projectId === project.id && x.serverId).map(x => x.serverId));
         const remoteLogs = await apiGetDailyLogs(project.id);
         // Bản đã có trên máy chủ mà máy chủ không trả về nữa (đã xóa, hoặc là nháp của người khác) → bỏ khỏi thiết bị.
-        // Bản chưa lên máy chủ (không có serverId) giữ nguyên để còn đồng bộ.
+        // Giữ lại: bản chưa lên máy chủ, bản mới có mã sau khi bắt đầu tải, bản còn thay đổi chờ đồng bộ.
         const remoteIds = new Set(remoteLogs.map(r => r.id));
-        db.logs = db.logs.filter(x => !(x.projectId === project.id && x.serverId && !remoteIds.has(x.serverId)));
+        const pendingIds = new Set((db.sync || []).filter(q => q.type === 'daily_log' && q.status === 'PENDING').map(q => q.recordId));
+        db.logs = db.logs.filter(x => !(x.projectId === project.id && x.serverId && knownBefore.has(x.serverId) && !remoteIds.has(x.serverId) && !pendingIds.has(x.id)));
 
         for(const remoteLog of remoteLogs){
           const serverId = remoteLog.id;
