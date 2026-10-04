@@ -41,7 +41,10 @@ function isLogLead(pid){return canApproveIn(pid)}
 // Mở lại báo cáo ngày (Chờ duyệt/Đã duyệt/Đã khóa) về Nháp — người có quyền Sửa tại công trình
 // (mặc định gồm TVGS trưởng) hoặc Admin/Giám đốc, không chỉ riêng Admin/Giám đốc như sửa trực tiếp.
 function canReopenLog(log){return !!log&&log.status!=='DRAFT'&&!!log.serverId&&(canManageAssignments()||qualityPermissions(log.projectId).includes('EDIT'))}
-function canSubmitLog(l){if(!l?.serverId||l.status!=='DRAFT')return false;if(canManageAssignments())return true;const p=qualityPermissions(l.projectId);return p.includes('EDIT')||(l.createdById===qualityAuthUserId()&&p.includes('CREATE'))}
+// Bản nháp là của riêng người lập: chỉ người lập (hoặc Admin/Giám đốc) gửi duyệt — khớp máy chủ.
+function canSubmitLog(l){if(!l?.serverId||l.status!=='DRAFT')return false;if(canManageAssignments())return true;return l.createdById===qualityAuthUserId()&&qualityPermissions(l.projectId).includes('CREATE')}
+// Nháp của người khác không hiện (máy chủ đã lọc; lớp này chặn bản cũ còn lưu trên thiết bị).
+function canSeeLog(l){return !!l&&(l.status!=='DRAFT'||!l.serverId||!l.createdById||l.createdById===qualityAuthUserId()||canManageAssignments())}
 function myPerms(pid){return canManageAssignments()?['VIEW','CREATE','EDIT','DOWNLOAD','APPROVE','DELETE']:qualityPermissions(pid)}
 // Quyền Xóa theo công trình: Admin/Giám đốc luôn có; người khác chỉ khi được cấp tùy chỉnh
 function canDeleteIn(pid){return myPerms(pid).includes('DELETE')}

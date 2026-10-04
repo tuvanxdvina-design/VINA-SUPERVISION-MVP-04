@@ -151,3 +151,7 @@ Ba lỗi của bộ kiểm thử phát hiện trong đợt này (đã sửa, kh�
 ## Đợt 32 — bản 2026-10-14.10 (04/10)
 - Thử tay trên app thật (TVGS trưởng Hùng, công trình 001): trước khi bấm: 2 nháp của Hùng, 2 bản Sơn đã gửi, 4 nháp thành viên. Bấm "Duyệt tất cả (4)" → Xác nhận 2/2 + Duyệt 2/2; 4 nháp thành viên giữ nguyên Nháp.
 - Dạng thẻ trên điện thoại: chụp màn hình 390×844 các trang Báo cáo ngày, Công trình, Tổng quan, Chi tiết công trình — 0 lỗi JS, 0 HTTP ≥ 400, không tràn ngang.
+
+## Đợt 33 — bản 2026-10-14.11 (04/10)
+- Hồi quy **45/45** (ca mới: nháp riêng người lập — TVGS trưởng/thành viên khác không thấy trong danh sách, theo mã, tệp; không sửa/gửi hộ/gửi hàng loạt; báo cáo tổng hợp không gom; Giám đốc thấy; gửi rồi thì thấy).
+- Giao diện **24/24** (GD-24 mới, GD-21 cập nhật).

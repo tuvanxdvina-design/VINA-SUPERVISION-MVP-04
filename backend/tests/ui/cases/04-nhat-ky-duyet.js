@@ -89,6 +89,21 @@ module.exports = function () {
     const trangThai = t => page.evaluate(w => { const tr = [...document.querySelectorAll('#logsTable tr')].find(r => r.innerText.includes(w)); return tr ? tr.innerText : ''; }, t);
     await page.waitForFunction(t => { const tr = [...document.querySelectorAll('#logsTable tr')].find(r => r.innerText.includes(t)); return tr && tr.innerText.includes('Đã duyệt'); }, cuaTruong);
     assert.ok((await trangThai(daGui)).includes('Đã duyệt'), 'bản thành viên đã gửi phải được duyệt: ' + await trangThai(daGui));
-    assert.ok((await trangThai(conNhap)).includes('Nháp'), 'nháp thành viên chưa gửi phải giữ nguyên: ' + await trangThai(conNhap));
+    assert.equal(await trangThai(conNhap), '', 'TVGS trưởng không được thấy nháp thành viên chưa gửi');
+    // Thành viên vẫn thấy nháp của mình, còn nguyên trạng thái Nháp (không bị duyệt hộ).
+    await loginViaApi(page, 'thanhb');
+    await openPage(page, 'daily');
+    await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), conNhap);
+    assert.ok((await trangThai(conNhap)).includes('Nháp'), 'nháp thành viên phải giữ nguyên: ' + await trangThai(conNhap));
+  });
+
+  uiTest('GD-24 bản nháp chỉ người lập thấy: TVGS trưởng không thấy nháp thành viên, thấy ngay khi đã gửi', async (page) => {
+    await loginViaApi(page, 'thanhb');
+    const nhap = await taoNhatKyQuaGiaoDien(page, { ngay: '2026-09-12', congViec: 'GD-24 nhap rieng cua thanh vien' });
+    const daGui = await taoNhatKyQuaGiaoDien(page, { ngay: '2026-09-13', congViec: 'GD-24 ban da gui', guiDuyet: true });
+    await loginViaApi(page, 'hung');
+    await openPage(page, 'daily');
+    await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), daGui, { timeout: 25000 });
+    assert.ok(!(await page.locator('#logsTable').innerText()).includes(nhap), 'TVGS trưởng không được thấy bản nháp của thành viên');
   });
 };

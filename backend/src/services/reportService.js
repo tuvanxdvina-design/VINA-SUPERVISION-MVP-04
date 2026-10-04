@@ -29,7 +29,7 @@ function period(type, from, to, project) {
   return [start, end];
 }
 
-async function compile(projectId, type, from, to) {
+async function compile(projectId, type, from, to, viewerId = null, seeAllDrafts = true) {
   if (!TYPES.includes(type)) throw Object.assign(new Error('Loại báo cáo không hợp lệ'), { status: 400 });
   const project = (await pool.query(`SELECT id, project_code, contract_no, name, province, address, owner_name, contractor_name,
       TO_CHAR(contract_date,'YYYY-MM-DD') contract_date, TO_CHAR(start_date,'YYYY-MM-DD') start_date, TO_CHAR(end_date,'YYYY-MM-DD') end_date,
@@ -49,7 +49,9 @@ async function compile(projectId, type, from, to) {
            (SELECT COUNT(*)::int FROM attachments x WHERE x.daily_log_id = dl.id) AS photos
     FROM daily_logs dl LEFT JOIN users u ON u.id = dl.created_by LEFT JOIN users a ON a.id = dl.approved_by
     WHERE dl.project_id = $1 AND dl.log_date BETWEEN $2 AND $3
-    ORDER BY dl.log_date, dl.shift`, [projectId, start, end])).rows;
+      -- Gom đúng phạm vi người lập báo cáo được thấy: nháp của người khác chỉ Admin/Giám đốc thấy.
+      AND ($5::boolean OR dl.status <> 'DRAFT' OR dl.created_by = $4)
+    ORDER BY dl.log_date, dl.shift`, [projectId, start, end, viewerId, !!seeAllDrafts])).rows;
 
   const days = Math.round((new Date(end) - new Date(start)) / DAY) + 1;
   const logDates = new Set(logs.map(l => l.date));

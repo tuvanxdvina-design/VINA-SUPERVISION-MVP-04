@@ -8,6 +8,7 @@ const permissionService = require('../services/permissionService');
 const { sendStoredFile } = require('../utils/fileSafety');
 const reviewService = require('../services/reviewService');
 const recycleService = require('../services/recycleService');
+const pool = require('../utils/db');
 
 const router = express.Router();
 
@@ -41,12 +42,14 @@ async function transition(action, logId, userId, rawComment) {
   const p = await permissionService.forUser(userId, log.project_id);
   const manager = ['ADMIN', 'DIRECTOR'].includes(p.role);
   if (!manager && !p.permissions.includes('VIEW')) return { status: 403, error: 'Không có quyền tại công trình này' };
+  // Bản nháp là của riêng người lập (người khác không thấy) → chỉ người lập (hoặc Admin/Giám đốc) gửi duyệt/xác nhận.
+  if (log.status === 'DRAFT' && !manager && log.created_by !== userId) return { status: 404, error: 'Không tìm thấy báo cáo ngày' };
   if (action === 'submit') {
-    const ok = manager || p.permissions.includes('EDIT') || (log.created_by === userId && p.permissions.includes('CREATE'));
-    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày hoặc người có quyền Sửa được gửi duyệt' };
+    const ok = manager || (log.created_by === userId && p.permissions.includes('CREATE'));
+    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày được gửi duyệt' };
   } else if (action === 'confirm') {
-    const ok = manager || p.permissions.includes('EDIT') || (log.created_by === userId && p.permissions.includes('CREATE'));
-    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày hoặc người có quyền Sửa được xác nhận' };
+    const ok = manager || (log.created_by === userId && p.permissions.includes('CREATE'));
+    if (!ok) return { status: 403, error: 'Chỉ người lập báo cáo ngày được xác nhận' };
     if (!permissionService.canApprove(p)) return { status: 403, error: 'Chỉ áp dụng khi bạn có quyền Duyệt tại công trình này — hãy dùng Gửi duyệt' };
   } else if (!permissionService.canApprove(p)) {
     return { status: 403, error: 'Chỉ Trưởng TVGS của công trình (người có quyền Duyệt), Giám đốc hoặc Admin được duyệt/trả lại/khóa báo cáo ngày' };
@@ -83,6 +86,19 @@ router.post('/bulk', async (req, res) => {
 });
 
 router.use('/:id', access.record('daily_logs'));
+
+// Bản nháp chỉ người lập thấy: mọi đường đọc theo id (xem, ảnh, tệp, sửa, thêm tệp) trả 404 với người khác
+// như thể không tồn tại. Admin/Giám đốc thấy hết. (Danh sách lọc trong getDailyLogsByProject.)
+router.use('/:id', async (req, res, next) => {
+  try {
+    if (req.params.id === 'bulk' || !/^[0-9a-f-]{36}$/i.test(req.params.id)) return next();
+    const row = (await pool.query('SELECT status, created_by FROM daily_logs WHERE id = $1', [req.params.id])).rows[0];
+    if (!row || row.status !== 'DRAFT' || row.created_by === req.user.userId) return next();
+    const p = await permissionService.forUser(req.user.userId, req.projectId);
+    if (['ADMIN', 'DIRECTOR'].includes(p.role)) return next();
+    return res.status(404).json({ error: 'Không tìm thấy báo cáo ngày' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // GET /api/daily-logs?project_id=xxx&status=xxx
 router.get('/', access.query, async (req, res) => {
@@ -216,7 +232,7 @@ router.post('/:id/files', express.raw({ type: () => true, limit: MAX_FILE + 1024
     if (!log) return res.status(404).json({ error: 'Không tìm thấy báo cáo ngày' });
     const p = await permissionService.forUser(req.user.userId, log.project_id);
     const manager = ['ADMIN', 'DIRECTOR'].includes(p.role);
-    if (!(manager || p.permissions.includes('EDIT') || (log.created_by === req.user.userId && p.permissions.includes('CREATE')))) return res.status(403).json({ error: 'Không có quyền thêm tệp cho báo cáo ngày này' });
+    if (!(manager || (log.created_by === req.user.userId && p.permissions.includes('CREATE')))) return res.status(403).json({ error: 'Không có quyền thêm tệp cho báo cáo ngày này' });
     if (!manager && log.status !== 'DRAFT') return res.status(409).json({ error: 'Chỉ thêm tệp khi báo cáo ngày còn là bản nháp' });
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Tệp rỗng' });
     if (req.body.length > MAX_FILE) return res.status(413).json({ error: 'Mỗi tệp tối đa 15 MB' });
