@@ -16,6 +16,9 @@ async function taoNhatKyQuaGiaoDien(page, { ngay, congViec, guiDuyet = false }) 
   await page.click(`#modal >> text="${guiDuyet ? 'Lưu và gửi duyệt' : 'Lưu nháp'}"`);
   await page.waitForSelector('#modal.show', { state: 'hidden' });
   await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), congViec);
+  // "Lưu và gửi duyệt" đóng hộp thoại TRƯỚC rồi mới đồng bộ + gửi duyệt lên máy chủ. Phải chờ dòng chuyển "Chờ duyệt"
+  // (lệnh gửi đã xong) — nếu không, ca đổi tài khoản ngay sẽ chạy đua với lệnh gửi (từng đỏ ngẫu nhiên trên GitHub).
+  if (guiDuyet) await page.waitForFunction(t => { const tr = [...document.querySelectorAll('#logsTable tr')].find(r => r.innerText.includes(t)); return tr && /Chờ duyệt|Đã duyệt/.test(tr.innerText); }, congViec);
   return congViec;
 }
 
