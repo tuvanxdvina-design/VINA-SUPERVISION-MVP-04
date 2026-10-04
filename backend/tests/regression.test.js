@@ -216,7 +216,8 @@ test('nhật ký: quy trình Nháp → Gửi duyệt → Duyệt → Khóa, đú
   const c = await api('POST', '/daily-logs', { project_id: P['001'], log_date: '2026-10-05', shift: 'CA1', work_summary: 'Đổ bê tông', weather: 'Nắng', worker_count: 12 }, 'thanhb');
   assert.equal(c.status, 201); const id = c.body.id;
   assert.equal((await api('POST', `/daily-logs/${id}/approve`, null, 'thanhb')).status, 403, 'TVGS không được tự duyệt');
-  assert.equal((await api('POST', `/daily-logs/${id}/approve`, null, 'hung')).status, 409, 'chưa gửi duyệt thì không duyệt được');
+  assert.equal((await api('POST', `/daily-logs/${id}/approve`, null, 'hung')).status, 404, 'chưa gửi duyệt: TVGS trưởng không thấy bản nháp nên không duyệt được');
+  assert.equal((await api('POST', `/daily-logs/${id}/approve`)).status, 409, 'Admin thấy nháp nhưng chưa gửi duyệt thì không duyệt được');
   assert.equal((await api('POST', `/daily-logs/${id}/submit`, null, 'thanhb')).body.status, 'SUBMITTED');
   assert.equal((await api('PATCH', `/daily-logs/${id}`, { work_summary: 'sửa' }, 'thanhb')).status, 409, 'đã gửi duyệt thì người lập không sửa được');
   assert.equal((await api('POST', `/daily-logs/${id}/reject`, { comment: 'Bổ sung khối lượng bê tông' }, 'hung')).body.status, 'DRAFT');
@@ -240,8 +241,11 @@ test('nhật ký: tài liệu kèm theo lên máy chủ, tải về đúng', asy
   const bytes = Buffer.from('bien ban nghiem thu');
   const f = await api('POST', `/daily-logs/${id}/files?name=${encodeURIComponent('biên bản.pdf')}`, bytes, 'thanhb', { 'Content-Type': 'application/pdf' });
   assert.equal(f.status, 201);
-  const dl = await api('GET', `/daily-logs/${id}/files/${f.body.id}`, null, 'hung');
+  const dl = await api('GET', `/daily-logs/${id}/files/${f.body.id}`, null, 'thanhb');
   assert.equal(Buffer.compare(dl.body, bytes), 0);
+  assert.equal((await api('GET', `/daily-logs/${id}/files/${f.body.id}`, null, 'hung')).status, 404, 'tệp của bản nháp chỉ người lập tải được');
+  await api('POST', `/daily-logs/${id}/submit`, null, 'thanhb');
+  assert.equal(Buffer.compare((await api('GET', `/daily-logs/${id}/files/${f.body.id}`, null, 'hung')).body, bytes), 0, 'gửi rồi thì TVGS trưởng tải được');
 });
 
 test('nhật ký: ảnh nhị phân tối ưu được lưu tập trung và đọc lại', async () => {
@@ -249,6 +253,8 @@ test('nhật ký: ảnh nhị phân tối ưu được lưu tập trung và đ�
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
   const file = await api('POST', `/daily-logs/${id}/attachments-binary?name=${encodeURIComponent('hiện trường.png')}`, png, 'thanhb', { 'Content-Type': 'image/png' });
   assert.equal(file.status, 201);
+  assert.equal((await api('GET', `/daily-logs/${id}/attachments`, null, 'hung')).status, 404, 'ảnh của bản nháp chỉ người lập xem được');
+  await api('POST', `/daily-logs/${id}/submit`, null, 'thanhb');
   const list = (await api('GET', `/daily-logs/${id}/attachments`, null, 'hung')).body;
   assert.ok(list.some(x => x.id === file.body.id));
   const content = (await api('GET', `/daily-logs/${id}/attachments/${file.body.id}`, null, 'hung')).body;
@@ -609,7 +615,7 @@ test('xóa: người lập, Trưởng TVGS không xóa được; Admin xóa ph�
   const log = (await api('POST', '/daily-logs', { project_id: P['001'], log_date: d, shift: 'CA1', work_summary: 'Nhật ký sẽ bị xóa' }, 'thanhb')).body;
   assert.equal((await api('POST', `/daily-logs/${log.id}/files?name=bb.pdf`, Buffer.from('%PDF-1.4 bien ban'), 'thanhb', { 'Content-Type': 'application/pdf' })).status, 201);
   assert.equal((await api('DELETE', `/daily-logs/${log.id}`, { reason: 'thử xóa' }, 'thanhb')).status, 403, 'người lập (kể cả bản nháp) không có quyền Xóa');
-  assert.equal((await api('DELETE', `/daily-logs/${log.id}`, { reason: 'thử xóa' }, 'hung')).status, 403, 'Trưởng TVGS mặc định không có quyền Xóa');
+  assert.equal((await api('DELETE', `/daily-logs/${log.id}`, { reason: 'thử xóa' }, 'hung')).status, 404, 'Trưởng TVGS không thấy (nên không xóa được) bản nháp của thành viên');
   assert.equal((await api('DELETE', `/daily-logs/${log.id}`, {})).status, 400, 'phải ghi lý do');
   const del = await api('DELETE', `/daily-logs/${log.id}`, { reason: 'Lập trùng ca' });
   assert.equal(del.status, 200); assert.ok(del.body.recycle_id);
@@ -729,4 +735,27 @@ test('sửa công trình/bảng tiến độ: xét quyền Duyệt TẠI công t
     setTitle('son', '003', before.son || null);
     setTitle('hung', '002', before.hung || null);
   }
+});
+
+test('báo cáo ngày: bản nháp chỉ người lập thấy và sửa; TVGS trưởng chỉ thấy khi đã gửi; Giám đốc thấy hết', async () => {
+  const r = await api('POST', '/daily-logs', { project_id: P['001'], log_date: '2026-07-07', shift: 'CA1', work_summary: 'NHAP-RIENG thanh vien' }, 'thanhb');
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const id = r.body.id;
+  const inList = async who => (await api('GET', `/daily-logs?project_id=${P['001']}`, null, who)).body.some(x => x.id === id);
+  assert.equal(await inList('thanhb'), true, 'người lập thấy nháp của mình');
+  assert.equal(await inList('hung'), false, 'TVGS trưởng không thấy nháp của thành viên');
+  assert.equal(await inList('son'), false, 'thành viên khác không thấy');
+  assert.equal(await inList('duong'), true, 'Giám đốc thấy hết');
+  assert.equal((await api('GET', `/daily-logs/${id}`, null, 'hung')).status, 404, 'xem trực tiếp theo id cũng bị chặn');
+  assert.equal((await api('GET', `/daily-logs/${id}/files`, null, 'hung')).status, 404, 'tệp kèm nháp bị chặn');
+  assert.equal((await api('PATCH', `/daily-logs/${id}`, { work_summary: 'trưởng sửa lén' }, 'hung')).status, 404, 'TVGS trưởng không sửa được nháp thành viên');
+  assert.equal((await api('POST', `/daily-logs/${id}/submit`, {}, 'hung')).status, 404, 'TVGS trưởng không gửi duyệt hộ được');
+  const bulk = (await api('POST', '/daily-logs/bulk', { action: 'submit', ids: [id] }, 'hung')).body;
+  assert.equal(bulk.done.length, 0, 'gửi duyệt hàng loạt cũng không gom được nháp người khác');
+  const comp = (await api('GET', `/reports/compile?project_id=${P['001']}&type=DAILY&from=2026-07-07`, null, 'hung')).body;
+  assert.ok(!JSON.stringify(comp).includes('NHAP-RIENG'), 'báo cáo tổng hợp không gom nháp người khác');
+  assert.equal((await api('PATCH', `/daily-logs/${id}`, { work_summary: 'NHAP-RIENG đã sửa' }, 'thanhb')).status, 200, 'người lập vẫn sửa được');
+  assert.equal((await api('POST', `/daily-logs/${id}/submit`, {}, 'thanhb')).status, 200);
+  assert.equal(await inList('hung'), true, 'gửi rồi thì TVGS trưởng thấy');
+  assert.equal((await api('GET', `/daily-logs/${id}`, null, 'hung')).status, 200);
 });

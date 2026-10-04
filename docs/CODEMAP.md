@@ -31,7 +31,7 @@ App wiring & health (build, pending migrations, security warnings): `src/app.js`
 | `02-quyen.js` | 8 | Bản sao quyền phía client: `myPerms`, `canApproveIn`, `canDeleteIn`, `deleteBtn`, `docCanDecide`, `canModifyDoc`, `canManageAssignments`, `defaultPermsFor`, `LEAD_DEFAULT_PERMS`, `isLeadTitle`, `PERM_LABELS`, `roleToken` |
 | `03-cong-trinh.js` | 17 | `renderProjects`, `projectRows`, `openProject`, `saveProject`, `openProjectDetail`, `renderProjectDetail`, `serverProjects` |
 | `04-tien-do.js` | 29 | Bảng tiến độ: `loadProjectProgressPlans`, `renderProjectProgress`, `sCurveSvg`, `openProgressPlan`, `saveProgressPlan`, `openProgressActuals`, `ITEM_STATUS`, `statusChip` |
-| `05-nhat-ky.js` | 12 | `renderLogs`, `logActionsHtml`, `logAction`, `logBulk`, `openLog`, `saveLog`, `showLogFiles`/`showLogPhotos`, `exportDailyLog`, `LOG_STATUS`, `SHIFT_OPTIONS` |
+| `05-nhat-ky.js` | 12 | `renderLogs`, `logActionsHtml`, `logAction`, `logBulk`, `canSeeLog` (ở `02-quyen.js`: nháp người khác không hiện), `logBulkLead` (ở `01-core.js`: TVGS trưởng Xác nhận nháp của mình + Duyệt bản thành viên đã gửi), `openLog`, `saveLog`, `showLogFiles`/`showLogPhotos`, `exportDailyLog`, `LOG_STATUS`, `SHIFT_OPTIONS` |
 | `06-ho-so.js` | 17 | `renderDocs`, `viewDoc`, `openDoc`, `saveDoc`, `docWorkflow`, `docFileLinks`, `openServerFile`, `DOC_STATUS`, `DOC_TYPES` |
 | `07-bao-cao.js` | 20 | `renderReports`, `openReport`, `compileReport`, `renderReportEditor`, `saveReport`, `reportBodyHtml`, `collectReportActuals`, `viewReport`, `printReport`, `periodInputsHtml` |
 | `08-chat-luong.js` | 24 | `renderIssues`, `openIssue`, `saveQualityDocument`, `viewIssue`, `printQualityDocument`, `qualityLetterhead` |
@@ -41,6 +41,7 @@ App wiring & health (build, pending migrations, security warnings): `src/app.js`
 | `12-thung-rac.js` | 7 | `deleteContent`, `confirmDeleteContent`, `loadTrash`, `renderTrash`, `restoreTrash`, `purgeTrash`, `DELETE_API` |
 | `13-tong-quan.js` | 11 | `loadPortfolio`, `renderPortfolio`, `loadProjectHealth`, `goAlertTarget`, `alertItemHtml`, `healthChip`, `pctBar`, `SEV_LABEL`, `renderDashboard` |
 | `14-dang-nhap.js` | 5 | Đăng nhập/đăng xuất, `openChangePassword`, `forcePasswordChange`, `checkServerMigrations`, `APP_BUILD` |
+| `16-the-dien-thoai.js` | 3 | Bảng → thẻ trên điện thoại: `cardifyTable`/`cardifyAll`, danh sách khung `MCARD_CONTAINERS` (thêm id khung bảng mới vào đây), MutationObserver tự chạy lại; CSS `table.mcards` trong `index.html` (@media ≤600px). Nạp cuối cùng. |
 | `00-khoi-dong.js`, `02-glue-sau-api.js`, `03-font-fix.js`, `05-glue-cuoi.js`, `glue-1-core.js`, `glue-4-tinh-nang-2.js`, `glue-6-tinh-nang-3.js` | 1–4 mỗi tệp | **Tệp keo**: các câu lệnh chạy ngay lúc nạp (gắn sự kiện nav, `renderAll()`, `applyInboxNavVisibility()`, đăng ký service worker, `window.addEventListener('load'…)`). Vị trí của chúng trong thứ tự nạp là **quan trọng** — đừng gộp vào tệp tính năng. |
 
 Thêm tệp `js/` mới thì phải có **cả** thẻ `<script src>` trong `index.html` **và** tên trong `SHELL_FILES` của `sw.js`; `node backend\scripts\check-frontend.js` sẽ báo nếu thiếu. Khi di chuyển mã giữa các tệp, chạy `node backend\scripts\check-split.js <commit-trước-khi-di-chuyển>` để chứng minh không mất/không sửa đơn vị mã nào.

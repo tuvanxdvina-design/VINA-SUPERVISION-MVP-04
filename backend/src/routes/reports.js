@@ -9,7 +9,10 @@ router.use(auth.verifyToken);
 
 // GET /api/reports/compile?project_id=&type=DAILY|WEEKLY|MONTHLY|FINAL&from=YYYY-MM-DD[&to=YYYY-MM-DD]
 router.get('/compile', access.query, async (req, res) => {
-  try { res.json(await reportService.compile(req.query.project_id, String(req.query.type || '').toUpperCase(), req.query.from, req.query.to)); }
+  try {
+    const p = await require('../services/permissionService').forUser(req.user.userId, req.query.project_id);
+    res.json(await reportService.compile(req.query.project_id, String(req.query.type || '').toUpperCase(), req.query.from, req.query.to, req.user.userId, ['ADMIN', 'DIRECTOR'].includes(p.role)));
+  }
   catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     console.error('reports:', e.message);

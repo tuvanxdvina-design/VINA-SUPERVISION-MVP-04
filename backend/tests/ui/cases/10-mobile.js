@@ -33,4 +33,37 @@ module.exports = function register() {
     assert.ok(modal.y + modal.height <= 845, 'Hop thoai tran doc');
     assert.deepEqual(page.__console, [], 'Co loi console tren giao dien mobile');
   }, { viewport: { width: 390, height: 844 } });
+
+  uiTest('GD-22 mobile: bang danh sach hien thanh the, nut thao tac nam trong man hinh khong can cuon ngang', async page => {
+    await loginViaApi(page, 'admin');
+    await openPage(page, 'projects');
+    await page.waitForSelector('#projectsTable table.mcards tbody tr');
+    const r = await page.evaluate(() => {
+      const t = document.querySelector('#projectsTable table.mcards');
+      const tr = t.querySelector('tbody tr');
+      const btn = tr.querySelector('td.mc-actions button');
+      const b = btn && btn.getBoundingClientRect();
+      return {
+        theadHidden: getComputedStyle(t.querySelector('thead') || t).display === 'none',
+        rowBlock: getComputedStyle(tr).display,
+        label: tr.querySelector('td[data-label]')?.getAttribute('data-label'),
+        btnInView: !!b && b.left >= 0 && b.right <= window.innerWidth + 1,
+        docWidth: document.documentElement.scrollWidth
+      };
+    });
+    assert.ok(r.theadHidden, 'tieu de bang phai an (nhan nam trong tung the)');
+    assert.equal(r.rowBlock, 'block', 'moi dong phai hien thanh the');
+    assert.ok(r.label, 'o phai co nhan cot');
+    assert.ok(r.btnInView, 'nut thao tac phai nam trong man hinh, khong phai cuon ngang');
+    assert.ok(r.docWidth <= 391, 'trang khong duoc tran ngang');
+    assert.deepEqual(page.__console, [], 'Co loi console');
+  }, { viewport: { width: 390, height: 844 } });
+
+  uiTest('GD-23 PC: bang van giu dang bang (the chi ap dung tren dien thoai)', async page => {
+    await loginViaApi(page, 'admin');
+    await openPage(page, 'projects');
+    await page.waitForSelector('#projectsTable table tbody tr');
+    const d = await page.evaluate(() => getComputedStyle(document.querySelector('#projectsTable tbody tr')).display);
+    assert.equal(d, 'table-row');
+  });
 };

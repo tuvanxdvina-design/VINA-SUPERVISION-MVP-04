@@ -70,7 +70,7 @@ ${p.contractContent?`<p><b>Nội dung</b><br>${esc(p.contractContent).replace(/\
 <h5>Nhà thầu</h5><div class="detail-meta"><div class="item"><b>Số hợp đồng</b>${esc(p.contractorContractNo||'—')}</div><div class="item"><b>Ngày ký</b>${p.contractorContractDate?fmtDate(p.contractorContractDate):'—'}</div><div class="item"><b>Giá trị</b>${p.contractorContractValue!=null&&p.contractorContractValue!==''?Number(p.contractorContractValue).toLocaleString('vi-VN')+' đ':'—'}</div></div>
 ${p.contractorContractContent?`<p><b>Nội dung</b><br>${esc(p.contractorContractContent).replace(/\n/g,'<br>')}</p>`:''}${contractorLink}`;
 renderProjectProgress(p);
-const logs=db.logs.filter(x=>x.projectId===p.id);
+const logs=db.logs.filter(x=>x.projectId===p.id&&canSeeLog(x));
 const issues=db.issues.filter(x=>x.projectId===p.id);
 const docs=db.docs.filter(x=>x.projectId===p.id);
 

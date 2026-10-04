@@ -19,7 +19,7 @@ function removeLogPhotoPick(i){logPhotoPicks.splice(i,1);renderLogPhotoPicks()}
 const LOG_STATUS={DRAFT:'Nháp',SUBMITTED:'Chờ duyệt',APPROVED:'Đã duyệt',LOCKED:'Đã khóa'};
 function renderLogs(){
   const pid=document.getElementById('logProject')?.value||'';
-  const projectLogs=db.logs.filter(x=>!pid||x.projectId===pid);
+  const projectLogs=db.logs.filter(x=>(!pid||x.projectId===pid)&&canSeeLog(x));
   const authorSelect=document.getElementById('logAuthor');const oldAuthor=authorSelect?.value||'';
   const authors=[...new Map(projectLogs.map(x=>[x.createdById||x.createdBy||'',{id:x.createdById||x.createdBy||'',name:x.createdBy||'Chưa xác định'}])).values()].filter(x=>x.id).sort((a,b)=>a.name.localeCompare(b.name,'vi'));
   if(authorSelect){authorSelect.innerHTML='<option value="">Tất cả người lập</option>'+authors.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('');authorSelect.value=authors.some(x=>x.id===oldAuthor)?oldAuthor:''}
@@ -31,10 +31,14 @@ function renderLogs(){
       '</td><td>'+esc(x.createdBy||'Chưa xác định')+'</td><td>'+Number(x.workers||0)+'</td><td>'+Number(x.machines||0)+
       '</td><td>'+logStatusBadge(x.status)+returnedChip(x)+'</td><td style="white-space:nowrap">'+logActionsHtml(x)+'</td></tr>';
   }).join('');
-  const mySubmit=list.filter(canSubmitLog).map(x=>x.id);
+  // Người có quyền Duyệt tại công trình (TVGS trưởng): KHÔNG "gửi duyệt" cho chính mình — nháp của mình thì Xác nhận thẳng,
+  // việc của thành viên thì Duyệt bản họ đã gửi. Nháp của thành viên không gom vào (họ chưa gửi = còn đang soạn).
+  const me=qualityAuthUserId();
+  const mySubmit=list.filter(x=>canSubmitLog(x)&&!isLogLead(x.projectId)).map(x=>x.id);
+  const toConfirm=list.filter(x=>canSubmitLog(x)&&isLogLead(x.projectId)&&String(x.createdById||'')===me).map(x=>x.id);
   const toApprove=list.filter(x=>x.serverId&&x.status==='SUBMITTED'&&isLogLead(x.projectId)&&(canManageAssignments()||x.lastReview?.action!=='ESCALATE')).map(x=>x.id);
   const toLock=list.filter(x=>x.serverId&&x.status==='APPROVED'&&isLogLead(x.projectId)).map(x=>x.id);
-  const bar=(mySubmit.length||toApprove.length||toLock.length)?'<div class="toolbar" style="margin:0 0 10px">'+(mySubmit.length?'<button class="primary" onclick="logBulk(\'submit\','+esc(JSON.stringify(mySubmit))+')">Gửi duyệt tất cả nháp ('+mySubmit.length+')</button>':'')+(toApprove.length?'<button class="primary" onclick="logBulk(\'approve\','+esc(JSON.stringify(toApprove))+')">Duyệt tất cả đang chờ ('+toApprove.length+')</button>':'')+(toLock.length?'<button onclick="logBulk(\'lock\','+esc(JSON.stringify(toLock))+')">Khóa tất cả đã duyệt ('+toLock.length+')</button>':'')+'</div>':'';
+  const bar=(mySubmit.length||toConfirm.length||toApprove.length||toLock.length)?'<div class="toolbar" style="margin:0 0 10px">'+(mySubmit.length?'<button class="primary" onclick="logBulk(\'submit\','+esc(JSON.stringify(mySubmit))+')">Gửi duyệt tất cả nháp ('+mySubmit.length+')</button>':'')+((toConfirm.length||toApprove.length)?'<button class="primary" onclick="logBulkLead('+esc(JSON.stringify(toConfirm))+','+esc(JSON.stringify(toApprove))+')">Duyệt tất cả ('+(toConfirm.length+toApprove.length)+')</button>':'')+(toLock.length?'<button onclick="logBulk(\'lock\','+esc(JSON.stringify(toLock))+')">Khóa tất cả đã duyệt ('+toLock.length+')</button>':'')+'</div>':'';
   const guide='<p class="muted" style="margin:0 0 8px">Quy trình: <b>Nháp</b> (người lập còn sửa) → <b>Gửi duyệt</b> → Trưởng TVGS <b>Duyệt</b> hoặc <b>Trả lại</b> → <b>Khóa</b> (hồ sơ chính thức).</p>';
   document.getElementById('logsTable').innerHTML=guide+bar+(rows?'<table><thead><tr><th>Ngày / ca</th><th>Công trình</th><th>Công việc</th><th>Người lập</th><th>NL</th><th>Máy</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>':'<p class="muted">Chưa có báo cáo ngày.</p>');
 }
@@ -131,7 +135,7 @@ if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]})
  navigator.share({title:'Báo cáo ngày công trình',text:`Báo cáo ngày ${project.name||''} ngày ${x.date||''}`,files:[file]}).catch(()=>download());
 }else download();
 }
-function fillReportFromLogs(){const pid=document.getElementById('dproj')?.value||'';const logs=db.logs.filter(x=>x.projectId===pid);if(!logs.length)return alert('Chưa có báo cáo ngày để tổng hợp.');const latest=logs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];const avg=logs.reduce((n,x)=>n+Number(x.workers||0),0)/logs.length;const planned=Number(document.getElementById('dplanned')?.value||0);const actual=Number(latest.progress||0);document.getElementById('dactual').value=actual;document.getElementById('dmanpower').value=Math.round(avg);document.getElementById('dschedule').value=actual>planned?'AHEAD':(actual<planned?'DELAYED':'ON_TRACK')}
+function fillReportFromLogs(){const pid=document.getElementById('dproj')?.value||'';const logs=db.logs.filter(x=>x.projectId===pid&&canSeeLog(x));if(!logs.length)return alert('Chưa có báo cáo ngày để tổng hợp.');const latest=logs.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];const avg=logs.reduce((n,x)=>n+Number(x.workers||0),0)/logs.length;const planned=Number(document.getElementById('dplanned')?.value||0);const actual=Number(latest.progress||0);document.getElementById('dactual').value=actual;document.getElementById('dmanpower').value=Math.round(avg);document.getElementById('dschedule').value=actual>planned?'AHEAD':(actual<planned?'DELAYED':'ON_TRACK')}
 
 async function syncDailyLogsFromApi(){
   if(!apiOnline() || typeof apiGetDailyLogs!=='function') return;
@@ -154,6 +158,10 @@ async function syncDailyLogsFromApi(){
 
       try{
         const remoteLogs = await apiGetDailyLogs(project.id);
+        // Bản đã có trên máy chủ mà máy chủ không trả về nữa (đã xóa, hoặc là nháp của người khác) → bỏ khỏi thiết bị.
+        // Bản chưa lên máy chủ (không có serverId) giữ nguyên để còn đồng bộ.
+        const remoteIds = new Set(remoteLogs.map(r => r.id));
+        db.logs = db.logs.filter(x => !(x.projectId === project.id && x.serverId && !remoteIds.has(x.serverId)));
 
         for(const remoteLog of remoteLogs){
           const serverId = remoteLog.id;
