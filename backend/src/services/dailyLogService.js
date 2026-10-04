@@ -139,6 +139,18 @@ class DailyLogService {
     return result.rows[0];
   }
 
+  // Mở lại về Nháp (từ Chờ duyệt/Đã duyệt/Đã khóa) để người lập sửa và gửi duyệt lại —
+  // cùng khuôn mẫu với reopenIssue/reopen hồ sơ. Quyền kiểm ở route (EDIT tại công trình hoặc Admin/Giám đốc).
+  async reopenDailyLog(id) {
+    const result = await pool.query(`
+      UPDATE daily_logs
+      SET status = 'DRAFT', submitted_at = NULL, approved_at = NULL, approved_by = NULL, locked_at = NULL, version = version + 1
+      WHERE id = $1
+      RETURNING *, TO_CHAR(log_date, 'YYYY-MM-DD') AS log_date_text
+    `, [id]);
+    return result.rows[0];
+  }
+
   // Chỉ cập nhật nhật ký còn ở trạng thái nháp.
   // Quy tắc sửa: ADMIN/GIÁM ĐỐC (giữ như cũ); hoặc bản DRAFT do mình lập (cần quyền Thêm);
   // hoặc bản DRAFT của người khác khi có quyền Sửa tại công trình.

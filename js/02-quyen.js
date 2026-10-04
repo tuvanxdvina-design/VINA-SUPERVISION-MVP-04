@@ -38,6 +38,9 @@ function canEditLog(log){
   return !log.serverId && db.sync.some(x=>x.type==='daily_log' && x.recordId===log.id && x.operation==='CREATE' && x.status==='PENDING');
 }
 function isLogLead(pid){return canApproveIn(pid)}
+// Mở lại báo cáo ngày (Chờ duyệt/Đã duyệt/Đã khóa) về Nháp — người có quyền Sửa tại công trình
+// (mặc định gồm TVGS trưởng) hoặc Admin/Giám đốc, không chỉ riêng Admin/Giám đốc như sửa trực tiếp.
+function canReopenLog(log){return !!log&&log.status!=='DRAFT'&&!!log.serverId&&(canManageAssignments()||qualityPermissions(log.projectId).includes('EDIT'))}
 function canSubmitLog(l){if(!l?.serverId||l.status!=='DRAFT')return false;if(canManageAssignments())return true;const p=qualityPermissions(l.projectId);return p.includes('EDIT')||(l.createdById===qualityAuthUserId()&&p.includes('CREATE'))}
 function myPerms(pid){return canManageAssignments()?['VIEW','CREATE','EDIT','DOWNLOAD','APPROVE','DELETE']:qualityPermissions(pid)}
 // Quyền Xóa theo công trình: Admin/Giám đốc luôn có; người khác chỉ khi được cấp tùy chỉnh

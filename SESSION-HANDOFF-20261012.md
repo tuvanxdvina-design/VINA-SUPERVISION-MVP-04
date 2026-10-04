@@ -1,6 +1,6 @@
 # Bàn giao phiên làm việc — đọc tệp này trước, không cần đọc lại lịch sử hội thoại cũ
 
-Ghi lúc: 2026-10-12, cập nhật lần cuối 01/10 (build hiện tại **2026-10-14.4**). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại trước (tốn token).
+Ghi lúc: 2026-10-12, cập nhật lần cuối 01/10 (build hiện tại **2026-10-14.5** — thêm "Mở lại" cho báo cáo ngày đã duyệt/khóa, xem CAP-NHAT Đợt 27). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại trước (tốn token).
 
 ## ⚠️ Đổi tên lớn vừa làm: "Nhật ký" → "Báo cáo ngày" (01/10, Đợt 24)
 Toàn bộ giao diện/thông báo đã đổi "Nhật ký"/"Nhật ký hiện trường" → "Báo cáo ngày". **Cơ chế/dữ liệu KHÔNG đổi** (vẫn bảng `daily_logs`, vẫn hàm `openLog`/`canEditLog`/`daily_logs` API, vẫn quy trình Nháp→Chờ duyệt→Duyệt→Khóa) — quyết định có chủ đích để không phá phần Xác nhận tự duyệt + Gói thầu vừa xong. Loại báo cáo tổng hợp "DAILY" trong mục Báo cáo đã đổi nhãn thành "Tổng hợp ngày" để tránh trùng tên. **Nếu đọc code thấy "nhật ký"/"log" ở tên hàm/biến/bảng — đó là tên nội bộ cũ, cố ý giữ nguyên, không phải sót.** Riêng `DOC_TYPES` trong `js/06-ho-so.js`/`documentService.js` có mã `'NK':'Nhật ký'` — đây là MỘT LOẠI HỒ SƠ PHÁP LÝ KHÁC (tài liệu lưu trữ dạng sổ nhật ký cũ), không liên quan tính năng vừa đổi tên, cố tình giữ nguyên.
@@ -11,20 +11,18 @@ Toàn bộ giao diện/thông báo đã đổi "Nhật ký"/"Nhật ký hiện t
 - Tài khoản thử: `duong` (Giám đốc — toàn quyền), mật khẩu hiện tại `Test12345` (đặt qua `node backend\scripts\set-user-password.js duong`, có thể đã bị đổi — nếu đăng nhập sai, đặt lại bằng script đó).
 - **MVP-03 có thể đang được một phiên Claude Code khác sửa song song** — đã thấy nhiều lần trong phiên trước (build MVP-03 tự tăng, có hàm mới lạ). Không đụng vào MVP-03 trừ khi được yêu cầu rõ.
 
-## ✅ `web-public` tự đồng bộ — ĐÃ XÁC NHẬN HẾT LỖI (01/10, build 2026-10-14.4)
-Lỗi "`web-public` không tự đồng bộ" ghi ở các đợt trước (Đợt 17, 20) **đã được xác nhận HẾT** qua thử thật: chạy `.\run.bat` xong, `web-public\js\14-dang-nhap.js` đã đúng `APP_BUILD='2026-10-14.4'` khớp bản gốc. `start-dev.ps1` hiện chép `index.html`/`api.js`/`sw.js`/`manifest.webmanifest`/icon + toàn bộ `js/*` sang `web-public` vô điều kiện, ngay đầu script, mỗi lần chạy. **Không rõ chính xác lỗi cũ được sửa ở đâu/khi nào** — `start-dev.ps1` vừa trải qua một đợt viết lại lớn (tách cổng MVP-04 khỏi MVP-03: 3001/8080 → 3003/8082, an toàn hơn khi tắt tiến trình cũ) gộp chung nhiều lần sửa chưa từng commit, nên không tách được dòng nào là fix thật.
+## ⚠️ `web-public` (cổng 8082) — tìm ra 2 lỗi thật, khuyến nghị DÙNG CỔNG 3003 THAY THẾ (01/10, build 2026-10-14.5)
 
-**Từ nay: chỉ sửa tệp gốc (`index.html`/`api.js`/`sw.js`/`js/*`), KHÔNG cần tự tay chép sang `web-public` nữa** — `.\run.bat` lo việc đó. Quy trình robocopy thủ công dưới đây chỉ giữ lại làm phương án dự phòng nếu lỗi tái phát (kiểm tra bằng cách so `APP_BUILD` hai bên sau khi chạy `run.bat`):
-```powershell
-cd "D:\Setup\QLGS-HeThong\ChatGPT\VINA-SUPERVISION-MVP-04"
-robocopy . web-public index.html api.js sw.js favicon.ico manifest.webmanifest /R:1 /W:1
-robocopy assets web-public\assets /E /R:1 /W:1
-robocopy js web-public\js /E /R:1 /W:1
-Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-.\run.bat
-```
+Đợt trước từng báo nhầm "lỗi đã hết" (do tình cờ khớp vì Claude tự chép tay trước khi test, không phải do `run.bat` tự chép đúng). Khi kiểm tra kỹ bằng trình duyệt thật (Đợt 27), phát hiện **2 lỗi thật, độc lập nhau**:
 
-**Lưu ý cho Claude phiên sau:** nếu công cụ dòng lệnh của Claude vẫn lỗi (xem mục dưới), không tự chạy `.\run.bat` được — vẫn phải nhờ người dùng chạy sau khi Claude sửa tệp gốc, rồi người dùng tự kiểm tra qua trình duyệt (Claude không còn cần vừa sửa gốc vừa ghi đè `web-public` thủ công như các phiên trước nữa — đỡ tốn công, đỡ rủi ro lệch 2 bản).
+1. **`start-dev.ps1` chép `js/` bị lỗi cú pháp**: `Copy-Item -LiteralPath (Join-Path $jsSrc '*') ...` — `-LiteralPath` khiến PowerShell hiểu `*` là tên tệp thật (không phải đại diện) → luôn thất bại âm thầm, `web-public\js\*` không bao giờ được cập nhật qua con đường này. **Đã sửa**: bỏ `-LiteralPath`, dùng `-Path`.
+2. **Cổng 8082 (python `http.server` phục vụ `web-public/`) bị trình duyệt cache tệp JS rất dai dẳng** — kể cả sau khi tệp trên đĩa đã đổi và tải lại trang. Python `http.server` không gửi header chống cache. Đây nhiều khả năng là **nguyên nhân gốc thật sự** của hầu hết các lần báo "sửa code mà giao diện vẫn chạy bản cũ" suốt from Đợt 17 tới giờ.
+
+**Phát hiện thêm quan trọng hơn cả 2 lỗi trên:** `backend/src/app.js` (cổng **3003**) phục vụ giao diện **trực tiếp từ thư mục gốc dự án**, không qua `web-public/`, không qua python. Nghĩa là **cổng 3003 không bao giờ bị lỗi đồng bộ hay cache dai dẳng** — sửa tệp gốc xong là có hiệu lực ngay, không cần chờ `run.bat` chép gì cả.
+
+**Khuyến nghị cho mọi phiên sau: dùng `http://localhost:3003/` làm địa chỉ chính để kiểm thử/làm việc hằng ngày, không dùng 8082 nữa trừ khi có lý do cụ thể** (đóng gói cài đặt/PWA có thể vẫn cần 8082 — chưa rà hết). Nếu vẫn cần dùng 8082, phải Ctrl+Shift+R (hard reload, không chỉ Ctrl+F5) hoặc mở cửa sổ ẩn danh mới để chắc chắn không dính cache cũ.
+
+**Lưu ý cho Claude phiên sau:** nếu công cụ dòng lệnh vẫn lỗi (xem mục dưới), không tự chạy `.\run.bat` được. Sau khi nhờ người dùng chạy, **kiểm tra lại bằng trình duyệt ở cổng 3003** (không phải 8082) trước khi kết luận đã đồng bộ đúng — cổng 8082 có thể báo sai do cache dù dữ liệu trên đĩa đã đúng.
 
 ## Việc đã làm xong (build 2026-10-09.1 → 2026-10-14.2) — xem chi tiết ở `CAP-NHAT-20260926.md` Đợt 16–24
 1. **`apiOnline()` (`js/01-core.js`) bỏ hẳn điều kiện `navigator.onLine`** — chỉ còn kiểm tra đã đăng nhập. Lý do: trên mạng Tailscale riêng (không có đường ra Internet công khai), `navigator.onLine` hay báo sai là offline, làm nhiều nút "Tải lại" (Tổng quan, Việc cần duyệt, Thùng rác) và việc lấy lại hồ sơ đã tải lên (`syncDocumentsFromApi`) không hoạt động dù đang có mạng. Đã tự kiểm bằng trình duyệt (Claude) — hoạt động đúng.

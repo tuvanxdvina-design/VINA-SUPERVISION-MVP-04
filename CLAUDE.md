@@ -2,7 +2,7 @@
 
 Bản này là **bản sao riêng của MVP-03** (fork ngày 09/10/2026) để sửa lỗi mà không đụng vào MVP-03 đang chạy thật qua Tailscale. Cổng và tên CSDL đã đổi khác MVP-03 để chạy song song không tranh nhau: backend `3003` (MVP-03 là `3002`), giao diện `8082` (MVP-03 `8081`), PostgreSQL cổng máy `5434` (MVP-03 `5433`), DB `vina_supervision_mvp04` (MVP-03 `vina_supervision`). Xem `README.md` của MVP-03 nếu cần đối chiếu bản gốc.
 
-**Bắt đầu phiên mới ở đây: đọc `SESSION-HANDOFF-20261012.md` trước tiên** (không cần đọc lại lịch sử hội thoại cũ) — có đủ: việc đã xong, việc chưa xong, tài khoản thử. `web-public` tự đồng bộ qua `.\run.bat` — đã xác nhận hoạt động đúng (01/10); chỉ sửa tệp gốc, không tự tay chép sang `web-public`.
+**Bắt đầu phiên mới ở đây: đọc `SESSION-HANDOFF-20261012.md` trước tiên** (không cần đọc lại lịch sử hội thoại cũ) — có đủ: việc đã xong, việc chưa xong, tài khoản thử. **Dùng `http://localhost:3003/` để kiểm thử, không dùng 8082** — 3003 phục vụ trực tiếp từ thư mục gốc (luôn mới, không qua `web-public`/không bị cache); 8082 (python server + `web-public/`) từng có lỗi chép tệp + bị trình duyệt cache dai dẳng (xem SESSION-HANDOFF mục "web-public").
 
 Construction-supervision (TVGS) management app for a Vietnamese consulting firm. UI text is Vietnamese; the user writes Vietnamese — answer in Vietnamese, direct, with pushback.
 **Do not re-read whole files.** Use this guide + `docs/CODEMAP.md`, then Grep for the function you need and Read only that range.

@@ -65,6 +65,7 @@ function logActionsHtml(x){
  if(canSubmitLog(x)){const act=canApproveIn(x.projectId)?'confirm':'submit';b.push('<button class="primary" onclick="logAction(\''+x.id+'\',\''+act+'\')">'+(act==='confirm'?'Xác nhận':'Gửi duyệt')+'</button>')}
  if(x.serverId&&x.status==='SUBMITTED'&&isLogLead(x.projectId)&&(canManageAssignments()||x.lastReview?.action!=='ESCALATE'))b.push('<button class="primary" onclick="logAction(\''+x.id+'\',\'approve\')">Duyệt</button>','<button onclick="logAction(\''+x.id+'\',\'reject\')">Trả lại</button>');
  if(x.serverId&&x.status==='APPROVED'&&isLogLead(x.projectId))b.push('<button onclick="logAction(\''+x.id+'\',\'lock\')">Khóa</button>');
+ if(canReopenLog(x))b.push('<button onclick="reopenLog(\''+x.id+'\')">Mở lại</button>');
  if(x.serverId&&(x.fileCount||x.photoCount))b.push('<button onclick="showLogFiles(\''+x.id+'\')">Tệp ('+((x.fileCount||0)+(x.photoCount||0))+')</button>');
  b.push('<button onclick="exportDailyLog(\''+x.id+'\')">Xuất</button>');
  if(x.serverId)b.push(deleteBtn('log',x.serverId,x.projectId,'Báo cáo ngày '+progressDate(x.date)+' — '+shiftLabel(x.shift)));
@@ -84,6 +85,13 @@ async function logAction(logId,action,silent){
  if(ask&&!silent&&!confirm(ask))return;
  try{const r=await apiRequest('/daily-logs/'+encodeURIComponent(l.serverId)+'/'+action,{method:'POST'});l.status=r.status;l.version=Number(r.version||l.version||1);l.canEdit=false;audit(action.toUpperCase(),'daily_log',l.serverId,l.date+' '+shiftLabel(l.shift));save()}
  catch(error){alert('Không thực hiện được: '+error.message)}
+}
+// Mở lại báo cáo ngày đã gửi/duyệt/khóa về Nháp để người lập sửa và gửi duyệt lại.
+async function reopenLog(logId){
+ const l=db.logs.find(v=>v.id===logId);if(!l?.serverId)return alert('Báo cáo ngày chưa lên máy chủ.');
+ if(!confirm('Mở lại báo cáo ngày này về Nháp để sửa? Báo cáo sẽ cần gửi duyệt lại từ đầu.'))return;
+ try{const r=await apiRequest('/daily-logs/'+encodeURIComponent(l.serverId)+'/reopen',{method:'POST'});l.status=r.status;l.version=Number(r.version||l.version||1);l.canEdit=true;audit('REOPEN','daily_log',l.serverId,l.date+' '+shiftLabel(l.shift));save()}
+ catch(error){alert('Không mở lại được: '+error.message)}
 }
 async function logBulk(action,ids){
  if(!ids.length)return;

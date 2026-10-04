@@ -19,7 +19,7 @@ $jsSrc = Join-Path $projectRoot 'js'
 if (Test-Path $jsSrc) {
     $jsDst = Join-Path $webRoot 'js'
     New-Item -ItemType Directory -Path $jsDst -Force | Out-Null
-    Copy-Item -LiteralPath (Join-Path $jsSrc '*') -Destination $jsDst -Recurse -Force
+    Copy-Item -Path (Join-Path $jsSrc '*') -Destination $jsDst -Recurse -Force
 }
 
 function Test-Http([string]$url) {

@@ -186,6 +186,24 @@ for (const action of Object.keys(TRANSITIONS)) {
   });
 }
 
+// POST /api/daily-logs/:id/reopen — mở lại về Nháp từ Chờ duyệt/Đã duyệt/Đã khóa, để người lập sửa và
+// gửi duyệt lại. Cùng khuôn mẫu với reopen hồ sơ/văn bản chất lượng: người có quyền Sửa tại công trình
+// (mặc định gồm TVGS trưởng) hoặc Admin/Giám đốc — không giới hạn chỉ Admin/Giám đốc như sửa trực tiếp.
+router.post('/:id/reopen', async (req, res) => {
+  try {
+    const current = await dailyLogService.getDailyLogById(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Không tìm thấy báo cáo ngày' });
+    const p = await permissionService.forUser(req.user.userId, current.project_id);
+    if (!['ADMIN', 'DIRECTOR'].includes(p.role) && !p.permissions.includes('EDIT')) {
+      return res.status(403).json({ error: 'Chỉ người được cấp quyền Sửa tại công trình này hoặc Admin/Giám đốc được mở lại báo cáo ngày' });
+    }
+    if (current.status === 'DRAFT') return res.status(409).json({ error: 'Báo cáo ngày đang là bản nháp, không cần mở lại' });
+    const log = await dailyLogService.reopenDailyLog(req.params.id);
+    await req.audit('daily_logs', req.params.id, 'REOPEN', { status: current.status }, { status: log.status }, req.user.userId);
+    res.json(log);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ---- Tài liệu kèm theo nhật ký (PDF/Word/Excel/ảnh…) lưu trong CSDL, tối đa 15 MB/tệp ----
 const MAX_FILE = 15 * 1024 * 1024;
 router.get('/:id/files', async (req, res) => {
