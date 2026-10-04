@@ -8,7 +8,11 @@ const { sendStoredFile } = require('../utils/fileSafety');
 
 const router = express.Router();
 const creators = [rbac.ROLES.ADMIN, rbac.ROLES.DIRECTOR];
-const editors = [rbac.ROLES.ADMIN, rbac.ROLES.DIRECTOR, rbac.ROLES.TVGS_LEAD];
+// Sửa công trình/tệp hợp đồng/bảng tiến độ: Admin/Giám đốc, hoặc người có quyền Duyệt TẠI đúng công trình này
+// (khớp canEditProject(pid) ở giao diện). Trước đây xét loại tài khoản chung TVGS_LEAD nên: GS viên làm "TVGS trưởng"
+// ở công trình khác thấy nút Sửa nhưng bị 403; tài khoản loại TVGS_LEAD chỉ là GS viên tại công trình vẫn sửa được qua API.
+const permissionService = require('../services/permissionService');
+const canEditHere = permissionService.requirePermission('APPROVE');
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function validProject(data) {
@@ -64,7 +68,7 @@ router.post('/', rbac.checkRole(creators), async (req, res) => {
   }
 });
 
-router.patch('/:id', access.projectParam, rbac.checkRole(editors), async (req, res) => {
+router.patch('/:id', access.projectParam, canEditHere, async (req, res) => {
   if (!uuidPattern.test(req.params.id) || !validProject(req.body)) {
     return res.status(400).json({ error: 'Thiếu hoặc sai thông tin công trình' });
   }
@@ -80,7 +84,7 @@ router.patch('/:id', access.projectParam, rbac.checkRole(editors), async (req, r
 });
 
 const MAX_PROJECT_FILE = 25 * 1024 * 1024;
-router.post('/:id/files', access.projectParam, rbac.checkRole(editors), express.raw({ type: () => true, limit: MAX_PROJECT_FILE + 1024 }), async (req, res) => {
+router.post('/:id/files', access.projectParam, canEditHere, express.raw({ type: () => true, limit: MAX_PROJECT_FILE + 1024 }), async (req, res) => {
   try {
     if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ error: 'Tệp rỗng' });
     if (req.body.length > MAX_PROJECT_FILE) return res.status(413).json({ error: 'Mỗi tệp công trình tối đa 25 MB' });
@@ -109,7 +113,6 @@ router.get('/:id/files/:fileId', access.projectParam, async (req, res) => {
 // ---------------------------------------------------------------------------
 const scheduleParser = require('../services/scheduleParser');
 const { readXlsx } = require('../services/xlsxReader');
-const permissionService = require('../services/permissionService');
 const dateText = /^\d{4}-\d{2}-\d{2}$/;
 
 function validItems(items) {
@@ -181,7 +184,7 @@ router.get('/:id/progress-plans/:planId/file', access.projectParam, async (req, 
   } catch (error) { sendError(res, error); }
 });
 
-router.post('/:id/progress-plans', access.projectParam, rbac.checkRole(editors), async (req, res) => {
+router.post('/:id/progress-plans', access.projectParam, canEditHere, async (req, res) => {
   const data = req.body || {};
   const err = validPlan(data, true);
   if (err) return res.status(400).json({ error: err });
@@ -192,7 +195,7 @@ router.post('/:id/progress-plans', access.projectParam, rbac.checkRole(editors),
   } catch (error) { sendError(res, error); }
 });
 
-router.patch('/:id/progress-plans/:planId', access.projectParam, rbac.checkRole(editors), async (req, res) => {
+router.patch('/:id/progress-plans/:planId', access.projectParam, canEditHere, async (req, res) => {
   const data = req.body || {};
   const err = validPlan(data, false);
   if (err) return res.status(400).json({ error: err });

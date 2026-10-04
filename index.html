@@ -61,7 +61,14 @@ table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px s
   th,td{min-width:90px}button,.btn{min-height:44px}input,select,textarea{font-size:16px;min-height:44px}
   .modal{padding:8px}.modalbox{max-height:calc(100dvh - 16px);padding:14px}
   .participant-row{grid-template-columns:1fr!important}
+  /* Thẻ số liệu (Tổng quan): 2 cột thay vì 1 — 4 thẻ không còn chiếm trọn màn hình đầu. */
+  .g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g4 .kpi{font-size:24px}
+  /* Thanh điều hướng dưới cuộn ngang (tới 10 mục): bóng mờ ở mép phải báo còn mục bị khuất, tự mất khi cuộn tới cuối. */
+  nav{background:linear-gradient(to left,#fff 30%,#fff0) right/28px 100% no-repeat local,linear-gradient(to left,#10182833,#10182800) right/14px 100% no-repeat scroll}
 }
+/* Biểu mẫu dài trong hộp thoại: thanh nút Lưu/Gửi luôn bám đáy, không phải cuộn hết form mới thấy. */
+#mbody>.toolbar:last-child,#mbody>.row>.toolbar:last-child{position:sticky;bottom:-20px;background:#fff;padding:10px 0;margin-bottom:-6px;z-index:2;box-shadow:0 -8px 10px -10px #10182866}
+@media(max-width:600px){#mbody>.toolbar:last-child,#mbody>.row>.toolbar:last-child{bottom:-14px}}
 /* Xoay ngang (man hinh rong hon trong khoang nay): du cho ten nam canh bieu tuong thay vi xep chong. */
 @media(orientation:landscape) and (max-width:900px){
   nav button{flex-direction:row;gap:4px;width:auto;font-size:14px;padding:7px 8px}

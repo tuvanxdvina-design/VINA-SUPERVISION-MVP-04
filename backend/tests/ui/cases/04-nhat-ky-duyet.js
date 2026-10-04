@@ -10,7 +10,9 @@ async function taoNhatKyQuaGiaoDien(page, { ngay, congViec, guiDuyet = false }) 
   await page.waitForSelector('#modal.show #lwork', { state: 'visible' });
   await page.fill('#ldate', ngay);
   await page.fill('#lwork', congViec);
-  await page.fill('#lworkers', '5');
+  // Nhân lực là danh sách nhiều loại (Đợt 19): điền dòng đầu tiên.
+  await page.fill('#lworkersBox .lworkers-type >> nth=0', 'Thợ xây');
+  await page.fill('#lworkersBox .lworkers-count >> nth=0', '5');
   await page.click(`#modal >> text="${guiDuyet ? 'Lưu và gửi duyệt' : 'Lưu nháp'}"`);
   await page.waitForSelector('#modal.show', { state: 'hidden' });
   await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), congViec);

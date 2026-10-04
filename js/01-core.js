@@ -32,7 +32,9 @@ function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt
 function fmt(d){return d?new Date(d).toLocaleString('vi-VN'):''}
 function fmtDate(d){return d?new Date(d).toLocaleDateString('vi-VN'):''}
 function executionDays(start,end){if(!start||!end)return '';const a=new Date(start),b=new Date(end);const days=Math.round((b-a)/86400000)+1;return days>0?days:''}
-function statusBadge(s){return `<span class="badge ${String(s||'').toLowerCase().replace(/\s+/g,'')}">${esc(s)}</span>`}
+// Mã trạng thái thô từ máy chủ (ACTIVE/OPEN/...) → chữ tiếng Việt; giá trị đã là tiếng Việt giữ nguyên.
+const STATUS_LABELS={ACTIVE:'ĐANG THI CÔNG',INACTIVE:'TẠM DỪNG',SUSPENDED:'TẠM DỪNG',COMPLETED:'HOÀN THÀNH',PLANNING:'CHUẨN BỊ',OPEN:'Đang xử lý',IN_PROGRESS:'Đang xử lý',RESOLVED:'Đã đóng',CLOSED:'Đã đóng'};
+function statusBadge(s){return `<span class="badge ${String(s||'').toLowerCase().replace(/\s+/g,'')}">${esc(STATUS_LABELS[String(s||'').toUpperCase()]||s)}</span>`}
 function enforceDashboardAccess(){
   const allowed=canViewDashboard();
   const btn=document.querySelector('nav button[data-page="dashboard"]');

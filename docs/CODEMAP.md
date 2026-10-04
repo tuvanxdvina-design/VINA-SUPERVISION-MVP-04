@@ -27,7 +27,7 @@ App wiring & health (build, pending migrations, security warnings): `src/app.js`
 
 | Tệp `js/` | KB | Nội dung |
 |---|---|---|
-| `01-core.js` | 30 | `db`, `save`, `persistLocal`, `queueSync`, `audit`, `esc`, `fmt`, `todayIso`, `openModal`/`closeModal`, `goPage`, `renderAll`, `updateNet` và các hàm dùng chung khác |
+| `01-core.js` | 30 | `db`, `save`, `persistLocal`, `queueSync`, `audit`, `esc`, `fmt`, `todayIso`, `openModal`/`closeModal`, `goPage`, `renderAll`, `updateNet`, `statusBadge` + `STATUS_LABELS` (mã trạng thái thô → chữ Việt) và các hàm dùng chung khác |
 | `02-quyen.js` | 8 | Bản sao quyền phía client: `myPerms`, `canApproveIn`, `canDeleteIn`, `deleteBtn`, `docCanDecide`, `canModifyDoc`, `canManageAssignments`, `defaultPermsFor`, `LEAD_DEFAULT_PERMS`, `isLeadTitle`, `PERM_LABELS`, `roleToken` |
 | `03-cong-trinh.js` | 17 | `renderProjects`, `projectRows`, `openProject`, `saveProject`, `openProjectDetail`, `renderProjectDetail`, `serverProjects` |
 | `04-tien-do.js` | 29 | Bảng tiến độ: `loadProjectProgressPlans`, `renderProjectProgress`, `sCurveSvg`, `openProgressPlan`, `saveProgressPlan`, `openProgressActuals`, `ITEM_STATUS`, `statusChip` |

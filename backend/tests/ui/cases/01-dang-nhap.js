@@ -31,6 +31,9 @@ module.exports = function () {
 
     await page.fill('#loginPassword', 'demo');
     await page.click('#loginButton');
+    // Thanh nav đã "visible" (theo Playwright) ngay từ trước, nằm dưới lớp đăng nhập → phải chờ lớp đăng nhập biến mất
+    // (đăng nhập xong app tải lại trang), nếu không ca này chạy đua với location.reload().
+    await page.waitForSelector('#loginScreen', { state: 'hidden' });
     await page.waitForSelector('nav button[data-page="projects"]', { state: 'visible' });
     assert.equal(await page.locator('#buildBanner').count(), 0, 'không được có banner lệch phiên bản giữa index.html và máy chủ');
     assert.equal(await page.locator('#loginScreen').isVisible(), false, 'đăng nhập đúng thì màn hình đăng nhập phải biến mất');
