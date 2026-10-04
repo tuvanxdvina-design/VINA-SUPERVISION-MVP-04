@@ -759,3 +759,16 @@ test('báo cáo ngày: bản nháp chỉ người lập thấy và sửa; TVGS t
   assert.equal(await inList('hung'), true, 'gửi rồi thì TVGS trưởng thấy');
   assert.equal((await api('GET', `/daily-logs/${id}`, null, 'hung')).status, 200);
 });
+
+test('cảnh báo thiếu báo cáo ngày: ngày chỉ có bản nháp vẫn tính là thiếu, gửi duyệt rồi mới hết thiếu', async () => {
+  const before = (await api('GET', `/reports/health/${P['001']}`)).body;
+  const d = (before.logs?.missing_days || [])[0];
+  assert.ok(d, 'cần ít nhất một ngày đang thiếu báo cáo để thử: ' + JSON.stringify(before.logs));
+  const r = await api('POST', '/daily-logs', { project_id: P['001'], log_date: d, shift: 'CA3', work_summary: 'nháp chưa gửi' }, 'thanhb');
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  const draftOnly = (await api('GET', `/reports/health/${P['001']}`)).body;
+  assert.ok(draftOnly.logs.missing_days.includes(d), 'chỉ có nháp thì vẫn là thiếu');
+  assert.equal((await api('POST', `/daily-logs/${r.body.id}/submit`, null, 'thanhb')).status, 200);
+  const submitted = (await api('GET', `/reports/health/${P['001']}`)).body;
+  assert.ok(!submitted.logs.missing_days.includes(d), 'đã gửi duyệt thì hết thiếu');
+});

@@ -155,3 +155,6 @@ Ba lỗi của bộ kiểm thử phát hiện trong đợt này (đã sửa, kh�
 ## Đợt 33 — bản 2026-10-14.11 (04/10)
 - Hồi quy **45/45** (ca mới: nháp riêng người lập — TVGS trưởng/thành viên khác không thấy trong danh sách, theo mã, tệp; không sửa/gửi hộ/gửi hàng loạt; báo cáo tổng hợp không gom; Giám đốc thấy; gửi rồi thì thấy).
 - Giao diện **24/24** (GD-24 mới, GD-21 cập nhật).
+
+## Đợt 34 — bản 2026-10-14.12 (04/10)
+- Hồi quy **46/46** (ca mới: nháp vẫn tính thiếu, gửi rồi hết thiếu — đã chứng minh đỏ trên mã cũ).
