@@ -72,4 +72,20 @@ module.exports = function () {
     await page.waitForFunction(() => !/Đang tải/.test(document.getElementById('inboxBody')?.innerText || ''));
     await page.waitForFunction(t => !(document.getElementById('inboxBody')?.innerText || '').includes(t), congViec);
   });
+
+  uiTest('GD-21 TVGS trưởng "Duyệt tất cả": xác nhận nháp của mình + duyệt bản thành viên đã gửi, không đụng nháp thành viên', async (page) => {
+    await loginViaApi(page, 'thanhb');
+    const daGui = await taoNhatKyQuaGiaoDien(page, { ngay: '2026-09-14', congViec: 'GD-21 thanh vien da gui', guiDuyet: true });
+    const conNhap = await taoNhatKyQuaGiaoDien(page, { ngay: '2026-09-15', congViec: 'GD-21 thanh vien con nhap' });
+    await loginViaApi(page, 'hung');
+    const cuaTruong = await taoNhatKyQuaGiaoDien(page, { ngay: '2026-09-16', congViec: 'GD-21 cua truong nhom' });
+    await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), daGui, { timeout: 25000 });
+    assert.equal(await page.locator('#daily button', { hasText: 'Gửi duyệt tất cả nháp' }).count(), 0,
+      'TVGS trưởng không còn nút gửi duyệt hàng loạt (trước đây gom cả nháp của thành viên)');
+    await page.locator('#daily button', { hasText: 'Duyệt tất cả (' }).first().click();
+    const trangThai = t => page.evaluate(w => { const tr = [...document.querySelectorAll('#logsTable tr')].find(r => r.innerText.includes(w)); return tr ? tr.innerText : ''; }, t);
+    await page.waitForFunction(t => { const tr = [...document.querySelectorAll('#logsTable tr')].find(r => r.innerText.includes(t)); return tr && tr.innerText.includes('Đã duyệt'); }, cuaTruong);
+    assert.ok((await trangThai(daGui)).includes('Đã duyệt'), 'bản thành viên đã gửi phải được duyệt: ' + await trangThai(daGui));
+    assert.ok((await trangThai(conNhap)).includes('Nháp'), 'nháp thành viên chưa gửi phải giữ nguyên: ' + await trangThai(conNhap));
+  });
 };

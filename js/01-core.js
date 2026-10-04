@@ -95,6 +95,22 @@ async function reopenLog(logId){
  try{const r=await apiRequest('/daily-logs/'+encodeURIComponent(l.serverId)+'/reopen',{method:'POST'});l.status=r.status;l.version=Number(r.version||l.version||1);l.canEdit=true;audit('REOPEN','daily_log',l.serverId,l.date+' '+shiftLabel(l.shift));save()}
  catch(error){alert('Không mở lại được: '+error.message)}
 }
+// TVGS trưởng: một nút "Duyệt tất cả" = Xác nhận nháp của chính mình + Duyệt bản thành viên đã gửi.
+async function logBulkLead(confirmIds,approveIds){
+ if(!confirmIds.length&&!approveIds.length)return;
+ if(confirmIds.length&&typeof queuedFileCount==='function'){for(const id of confirmIds)if(await queuedFileCount('daily_log',id))return alert('Có báo cáo ngày của bạn còn ảnh hoặc tài liệu chưa đồng bộ. Hãy kết nối mạng và chờ tải xong trước khi xác nhận.')}
+ const parts=[confirmIds.length?'Xác nhận '+confirmIds.length+' báo cáo ngày của bạn':'',approveIds.length?'Duyệt '+approveIds.length+' báo cáo ngày thành viên đã gửi':''].filter(Boolean);
+ if(!confirm(parts.join('\n')+'?'))return;
+ const lines=[];
+ for(const [action,ids,label] of [['confirm',confirmIds,'Xác nhận'],['approve',approveIds,'Duyệt']]){
+  if(!ids.length)continue;
+  try{const r=await apiRequest('/daily-logs/bulk',{method:'POST',body:JSON.stringify({action,ids:ids.map(id=>db.logs.find(l=>l.id===id)?.serverId).filter(Boolean)})});
+   r.done.forEach(x=>{const l=db.logs.find(v=>v.serverId===x.id);if(l){l.status=x.status;l.canEdit=false}});
+   lines.push(label+' thành công '+r.done.length+'/'+ids.length+(r.failed.length?'. Không thực hiện được:\n'+r.failed.map(f=>{const l=db.logs.find(v=>v.serverId===f.id);return '- '+(l?l.date+' '+shiftLabel(l.shift):f.id)+': '+f.error}).join('\n'):'.'))}
+  catch(error){lines.push(label+': không thực hiện được — '+error.message)}
+ }
+ save();alert(lines.join('\n'));
+}
 async function logBulk(action,ids){
  if(!ids.length)return;
  if(action==='submit'&&typeof queuedFileCount==='function'){const blocked=[];for(const id of ids)if(await queuedFileCount('daily_log',id))blocked.push(id);if(blocked.length)return alert(blocked.length+' báo cáo ngày còn ảnh hoặc tài liệu chưa đồng bộ. Hãy kết nối mạng và chờ tải xong trước khi gửi duyệt.')}
