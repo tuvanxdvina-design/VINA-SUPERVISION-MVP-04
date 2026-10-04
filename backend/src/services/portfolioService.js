@@ -107,9 +107,10 @@ async function projectHealth(project, asOfText) {
 
   // ---- 2. Nhật ký hằng ngày (Thứ Hai–Thứ Bảy trong 7 ngày trước ngày asOf) ----
   const from = addDays(asOf, -THRESHOLDS.logWindowDays), to = addDays(asOf, -1);
+  // Chỉ tính báo cáo đã gửi trở đi: bản nháp chỉ người lập thấy, chưa gửi thì vẫn là "thiếu" (người dùng chốt 04/10).
   const logDays = new Set((await pool.query(`SELECT DISTINCT TO_CHAR(log_date,'YYYY-MM-DD') AS d FROM daily_logs
-    WHERE project_id = $1 AND log_date BETWEEN $2 AND $3`, [project.id, from, to])).rows.map(r => r.d));
-  const lastLog = (await pool.query(`SELECT TO_CHAR(MAX(log_date),'YYYY-MM-DD') AS d FROM daily_logs WHERE project_id = $1 AND log_date <= $2`, [project.id, asOf])).rows[0]?.d || null;
+    WHERE project_id = $1 AND log_date BETWEEN $2 AND $3 AND status <> 'DRAFT'`, [project.id, from, to])).rows.map(r => r.d));
+  const lastLog = (await pool.query(`SELECT TO_CHAR(MAX(log_date),'YYYY-MM-DD') AS d FROM daily_logs WHERE project_id = $1 AND log_date <= $2 AND status <> 'DRAFT'`, [project.id, asOf])).rows[0]?.d || null;
   const projectStart = project.start_date ? String(project.start_date).slice(0, 10) : (out.plan?.start || null);
   const missing = [];
   for (let d = from; d <= to; d = addDays(d, 1)) {

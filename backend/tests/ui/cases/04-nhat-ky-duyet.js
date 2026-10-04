@@ -30,7 +30,8 @@ module.exports = function () {
 
     const row = () => page.locator('#logsTable tr', { hasText: congViec });
     assert.ok((await row().innerText()).includes('Nháp'), 'nhật ký mới phải ở trạng thái Nháp: ' + (await row().innerText()));
-    assert.ok(await row().locator('text="Gửi duyệt"').isVisible(), 'nháp phải có nút Gửi duyệt');
+    // Nút Gửi duyệt chỉ hiện khi bản nháp đã lên máy chủ (đồng bộ bất đồng bộ sau khi lưu) — chờ, không kiểm ngay.
+    await row().locator('text="Gửi duyệt"').waitFor({ state: 'visible' });
     assert.equal(await row().locator('text="Duyệt"').count(), 0, 'người lập không được thấy nút Duyệt');
 
     await row().locator('text="Gửi duyệt"').click(); // confirm() được helper tự chấp nhận
@@ -105,5 +106,21 @@ module.exports = function () {
     await openPage(page, 'daily');
     await page.waitForFunction(t => (document.getElementById('logsTable')?.innerText || '').includes(t), daGui, { timeout: 25000 });
     assert.ok(!(await page.locator('#logsTable').innerText()).includes(nhap), 'TVGS trưởng không được thấy bản nháp của thành viên');
+  });
+
+  uiTest('GD-25 đồng bộ: bản vừa lên máy chủ trong lúc đang tải danh sách không bị xóa nhầm khỏi thiết bị', async (page) => {
+    await loginViaApi(page, 'thanhb');
+    const r = await page.evaluate(async () => {
+      const pid = db.projects[0].id;
+      db.logs.push({ id: 'race-new', projectId: pid, serverId: null, status: 'DRAFT', date: '2026-01-01', shift: 'CA1', work: 'RACE' });
+      db.logs.push({ id: 'race-old', projectId: pid, serverId: '00000000-0000-4000-8000-000000000001', status: 'DRAFT', date: '2026-01-02', shift: 'CA1', work: 'GONE' });
+      const orig = window.apiGetDailyLogs;
+      // Trong lúc đang tải danh sách, race-new vừa nhận mã máy chủ nhưng danh sách trả về chưa có nó.
+      window.apiGetDailyLogs = apiGetDailyLogs = async p => { const res = await orig(p); const l = db.logs.find(x => x.id === 'race-new'); if (l) l.serverId = '00000000-0000-4000-8000-0000000000aa'; return res; };
+      await syncDailyLogsFromApi();
+      return { keptNew: db.logs.some(x => x.id === 'race-new'), removedGone: !db.logs.some(x => x.id === 'race-old') };
+    });
+    assert.equal(r.keptNew, true, 'bản vừa lên máy chủ phải được giữ lại');
+    assert.equal(r.removedGone, true, 'bản máy chủ không còn trả về (đã xóa / nháp người khác) phải được dọn');
   });
 };
