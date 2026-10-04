@@ -33,7 +33,8 @@ async function startApp() {
   server = db.startServer({ port: PORT });
   await db.waitHealth(BASE);
   try {
-    browser = await chromium.launch({ channel: 'chrome', headless: true });
+    // CHROME_PATH: chạy trên máy không có Google Chrome (Linux/CI) bằng Chromium chỉ định sẵn.
+    browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH, headless: true } : { channel: 'chrome', headless: true });
   } catch (e) {
     throw new Error('Không mở được Chrome (channel=chrome). Máy này cần Google Chrome; nếu không có, chạy "npx playwright install chromium" rồi bỏ tham số channel. Lỗi gốc: ' + e.message);
   }
@@ -129,7 +130,8 @@ async function loginViaForm(page, who, password = 'demo') {
 async function openPage(page, dataPage) {
   if (dataPage === 'daily') {
     await page.click('nav button[data-page="reports"]');
-    await page.click('.report-hub-tab[data-tab="daily"]');
+    // Hai trang #reports và #daily đều có thanh tab giống nhau; chỉ bấm cái đang hiện.
+    await page.click('#reports .report-hub-tab[data-tab="daily"]');
     await page.waitForSelector('#daily.page.active', { state: 'visible' });
     return;
   }

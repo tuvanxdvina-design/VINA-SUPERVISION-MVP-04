@@ -706,3 +706,27 @@ test('van ban chat luong: luu tap trung day du chi tiet bieu mau trong issues.de
   assert.equal(updated.status, 200);
   assert.equal((await api('GET', `/issues/${created.body.id}`)).body.details.conclusion, 'Can bo sung anh hien truong');
 });
+
+test('sửa công trình/bảng tiến độ: xét quyền Duyệt TẠI công trình, không theo loại tài khoản chung', async () => {
+  // son (ENGINEER) là "TVGS trưởng" tại 003 → được sửa 003; hung (TVGS_LEAD) chỉ là "GS viên" tại 002 → không được sửa 002.
+  const setTitle = (user, contract, title) => psql(`UPDATE project_members pm SET assignment_title=${title === null ? 'NULL' : `'${title}'`} FROM users u, projects p WHERE pm.user_id=u.id AND pm.project_id=p.id AND u.username='${user}' AND p.contract_no='${contract}'`);
+  const before = { son: psql(`SELECT COALESCE(pm.assignment_title,'') FROM project_members pm JOIN users u ON u.id=pm.user_id JOIN projects p ON p.id=pm.project_id WHERE u.username='son' AND p.contract_no='003'`),
+    hung: psql(`SELECT COALESCE(pm.assignment_title,'') FROM project_members pm JOIN users u ON u.id=pm.user_id JOIN projects p ON p.id=pm.project_id WHERE u.username='hung' AND p.contract_no='002'`) };
+  try {
+    setTitle('son', '003', 'TVGS trưởng');
+    setTitle('hung', '002', 'GS viên');
+    const p3 = (await api('GET', `/projects/${P['003']}`)).body; const p2 = (await api('GET', `/projects/${P['002']}`)).body;
+    let r = await api('PATCH', `/projects/${P['003']}`, { name: p3.name, contract_no: p3.contract_no }, 'son');
+    assert.equal(r.status, 200, 'TVGS trưởng tại công trình phải sửa được công trình đó: ' + JSON.stringify(r.body));
+    r = await api('PATCH', `/projects/${P['002']}`, { name: p2.name + ' (lén sửa)', contract_no: p2.contract_no }, 'hung');
+    assert.equal(r.status, 403, 'tài khoản loại TVGS_LEAD nhưng chỉ là GS viên tại công trình thì không được sửa');
+    assert.match(r.body.error, /Duyệt/, 'thông báo lỗi tiếng Việt nêu rõ thiếu quyền Duyệt');
+    r = await api('PATCH', `/projects/${P['003']}`, { name: p3.name, contract_no: p3.contract_no }, 'tuan');
+    assert.equal(r.status, 403, 'GS viên thường không sửa được công trình');
+    r = await api('PATCH', `/projects/${P['002']}`, { name: p2.name, contract_no: p2.contract_no }, 'duong');
+    assert.equal(r.status, 200, 'Giám đốc vẫn sửa được mọi công trình');
+  } finally {
+    setTitle('son', '003', before.son || null);
+    setTitle('hung', '002', before.hung || null);
+  }
+});
