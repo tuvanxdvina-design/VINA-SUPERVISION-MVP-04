@@ -159,3 +159,8 @@ Ba lỗi của bộ kiểm thử phát hiện trong đợt này (đã sửa, kh�
 ## Đợt 34 — bản 2026-10-14.12 (04/10)
 - Hồi quy **46/46** (ca mới: nháp vẫn tính thiếu, gửi rồi hết thiếu — đã chứng minh đỏ trên mã cũ).
 - Giao diện **25/25** (GD-25 mới: chạy đua đồng bộ — mã cũ xóa nhầm bản vừa lưu; nhóm ca báo cáo ngày chạy 3 lượt liên tiếp đều xanh).
+
+## Đợt 35 — bản 2026-10-14.13 (05/10)
+- Hồi quy **47/47** (thêm ma trận vai trò 7×5 — đột biến "TVGS trưởng được khai báo gói thầu" bị bắt: "mong 403, nhận 201").
+- Giao diện **26/26** (GD-26 mới).
+- Thử tay trên app (khung điện thoại, GS viên gán gói có nhà thầu chưa hạng mục): nhà thầu là danh sách chọn, Hạng mục gõ tay, nhãn đầy đủ; văn bản chất lượng: ô Gói thầu liệt kê đủ 4 gói của công trình. 0 lỗi JS.

@@ -1,6 +1,6 @@
 # Bàn giao phiên làm việc — đọc tệp này trước, không cần đọc lại lịch sử hội thoại cũ
 
-Ghi lúc: 2026-10-12, cập nhật lần cuối **05/10/2026** (build hiện tại **2026-10-14.12**, đã chạy trên máy người dùng và người dùng đã thử đạt). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại. **Đọc mục "Phiên 04–05/10" ngay dưới đây trước** — các mục phía dưới là lịch sử cũ hơn, một số câu "chưa kiểm thử/không chạy được lệnh" ở đó đã lỗi thời.
+Ghi lúc: 2026-10-12, cập nhật lần cuối **05/10/2026** (build hiện tại **2026-10-14.13**, đã chạy trên máy người dùng và người dùng đã thử đạt). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại. **Đọc mục "Phiên 04–05/10" ngay dưới đây trước** — các mục phía dưới là lịch sử cũ hơn, một số câu "chưa kiểm thử/không chạy được lệnh" ở đó đã lỗi thời.
 
 ## ★ Phiên 04–05/10 (build 2026-10-14.9 → .12) — ĐỌC TRƯỚC
 
@@ -27,11 +27,11 @@ Ghi lúc: 2026-10-12, cập nhật lần cuối **05/10/2026** (build hiện t�
 - Ngày chỉ có nháp = thiếu báo cáo.
 - Điện thoại dùng dạng thẻ; PC giữ dạng bảng.
 
-### Đề xuất đã được duyệt — đang làm (05/10), xem CAP-NHAT Đợt 35 khi xong
+### Đề xuất đã duyệt — ĐÃ XONG 05/10 (bản 2026-10-14.13, CAP-NHAT Đợt 35)
 1. Ô "Gói thầu" trong văn bản chất lượng chọn từ danh sách gói đã khai báo (tránh gõ tay lệch tên).
 2. Nhãn đầy đủ: "Đơn vị tc" → "Đơn vị thi công", "Cbkt" → "Cán bộ kỹ thuật (người)".
 3. Gói thầu có nhà thầu nhưng chưa có hạng mục: vẫn cho chọn nhà thầu từ danh sách (hiện lùi về ô gõ tay).
-4. Bộ tình huống kiểm thử đủ mọi vai trò (Admin, Giám đốc, TVGS trưởng, GS viên, người không được phân công).
+4. Bộ tình huống kiểm thử đủ mọi vai trò (Admin, Giám đốc, TVGS trưởng, GS viên, người không được phân công) — ca hồi quy "ma trận vai trò" ở cuối `regression.test.js` (7 chức năng × 5 vai trò; thêm vai trò/chức năng = thêm dòng). Chưa có tài khoản thử loại MANAGER trong dữ liệu mẫu.
 
 ### Còn mở (chưa ai yêu cầu làm)
 - `backend/.env` của MVP-04 có thể dùng chung `JWT_SECRET` với MVP-03 — nên đổi khóa riêng.

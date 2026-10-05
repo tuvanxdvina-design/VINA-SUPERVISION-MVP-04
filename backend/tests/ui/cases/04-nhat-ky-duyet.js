@@ -123,4 +123,37 @@ module.exports = function () {
     assert.equal(r.keptNew, true, 'bản vừa lên máy chủ phải được giữ lại');
     assert.equal(r.removedGone, true, 'bản máy chủ không còn trả về (đã xóa / nháp người khác) phải được dọn');
   });
+
+  uiTest('GD-26 gói thầu: văn bản chất lượng chọn gói từ danh sách; nhà thầu chưa có hạng mục vẫn chọn được, hạng mục gõ tay; nhãn đầy đủ', async (page) => {
+    await loginViaApi(page, 'admin');
+    const r = await page.evaluate(async () => {
+      const pid = db.projects.find(p => (p.contractNo || p.contract_no || p.code) === '001')?.id || db.projects[0].id;
+      const pk = await apiRequest('/bidding-packages', { method: 'POST', body: JSON.stringify({ project_id: pid, name: 'GD26 Gói A' }) });
+      await apiRequest('/bidding-packages/' + pk.id + '/contractors', { method: 'POST', body: JSON.stringify({ name: 'GD26 Nhà thầu chưa hạng mục', items: [] }) });
+      const team = await apiRequest('/project-personnel/project/' + pid + '/team');
+      const me = team.find(x => x.username === 'thanhb');
+      await apiRequest('/project-personnel/' + me.personnel_id, { method: 'PUT', body: JSON.stringify({ bidding_package_id: pk.id }) });
+      return { pid };
+    });
+    await loginViaApi(page, 'thanhb');
+    await openPage(page, 'daily');
+    await page.click('#newLogButton');
+    await page.waitForSelector('#modal.show #lwork', { state: 'visible' });
+    await page.waitForSelector('#modal.show select#lcontractorunit');
+    const log = await page.evaluate(() => ({
+      labels: [...document.querySelectorAll('#modal label')].map(l => l.innerText),
+      contractor: [...document.getElementById('lcontractorunit').options].map(o => o.text),
+      item: document.getElementById('litemcategory')?.tagName
+    }));
+    assert.ok(log.contractor.includes('GD26 Nhà thầu chưa hạng mục'), 'nhà thầu chưa có hạng mục vẫn phải chọn được: ' + JSON.stringify(log.contractor));
+    assert.equal(log.item, 'INPUT', 'nhà thầu chưa có hạng mục → Hạng mục gõ tay');
+    assert.ok(log.labels.some(t => t.startsWith('Đơn vị thi công')) && log.labels.some(t => t.startsWith('Cán bộ kỹ thuật')), 'nhãn đầy đủ: ' + JSON.stringify(log.labels));
+    assert.ok(!log.labels.some(t => /^Cbkt|Đơn vị tc/.test(t)), 'không còn nhãn viết tắt');
+    await page.evaluate(() => closeModal());
+    await openPage(page, 'issues');
+    await page.evaluate(() => openIssue());
+    await page.waitForSelector('#modal.show select#ipackage');
+    const opts = await page.evaluate(() => [...document.getElementById('ipackage').options].map(o => o.text));
+    assert.ok(opts.includes('GD26 Gói A'), 'ô Gói thầu phải chọn từ danh sách gói đã khai báo: ' + JSON.stringify(opts));
+  });
 };
