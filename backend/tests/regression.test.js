@@ -772,3 +772,66 @@ test('cảnh báo thiếu báo cáo ngày: ngày chỉ có bản nháp vẫn tí
   const submitted = (await api('GET', `/reports/health/${P['001']}`)).body;
   assert.ok(!submitted.logs.missing_days.includes(d), 'đã gửi duyệt thì hết thiếu');
 });
+
+// ---------------------------------------------------------------------------
+// MA TRẬN VAI TRÒ × CHỨC NĂNG tại công trình 001 (kiểm ở máy chủ — chặn ở đây mới là chặn thật).
+// admin = Admin, duong = Giám đốc, hung = TVGS trưởng tại 001, thanhb = GS viên tại 001, tuan = không được phân công 001.
+// Mỗi ô: mã HTTP mong đợi. Thêm vai trò/chức năng mới → thêm dòng/cột ở đây.
+// ---------------------------------------------------------------------------
+test('ma trận vai trò: xem/lập/sửa/duyệt/xóa/khai báo đúng người đúng quyền tại từng công trình', async () => {
+  const ROLES = ['admin', 'duong', 'hung', 'thanhb', 'tuan'];
+  const base = shift(vnToday(), 120);
+  let n = 0;
+  const day = () => shift(base, n++);
+  const p1 = (await api('GET', `/projects/${P['001']}`)).body;
+  const out = [];
+  const check = (label, who, got, want) => { if (got !== want) out.push(`${label} [${who}]: mong ${want}, nhận ${got}`); };
+
+  // 1) Xem công trình
+  const view = { admin: 200, duong: 200, hung: 200, thanhb: 200, tuan: 403 };
+  for (const who of ROLES) check('xem công trình', who, (await api('GET', `/projects/${P['001']}`, null, who)).status, view[who]);
+
+  // 2) Lập báo cáo ngày
+  const create = { admin: 201, duong: 201, hung: 201, thanhb: 201, tuan: 403 };
+  const created = {};
+  for (const who of ROLES) {
+    const r = await api('POST', '/daily-logs', { project_id: P['001'], log_date: day(), shift: 'CA1', work_summary: 'MA-TRAN ' + who }, who);
+    check('lập báo cáo ngày', who, r.status, create[who]);
+    if (r.status === 201) created[who] = r.body.id;
+  }
+
+  // 3) Sửa công trình (quyền Duyệt tại công trình)
+  const editProject = { admin: 200, duong: 200, hung: 200, thanhb: 403, tuan: 403 };
+  for (const who of ROLES) check('sửa công trình', who, (await api('PATCH', `/projects/${P['001']}`, { name: p1.name, contract_no: p1.contract_no }, who)).status, editProject[who]);
+
+  // 4) Khai báo gói thầu (chỉ Admin/Giám đốc)
+  const pkg = { admin: 201, duong: 201, hung: 403, thanhb: 403, tuan: 403 };
+  for (const who of ROLES) check('khai báo gói thầu', who, (await api('POST', '/bidding-packages', { project_id: P['001'], name: 'MT-' + who }, who)).status, pkg[who]);
+
+  // 5) Duyệt bản GS viên đã gửi (mỗi vai trò thử trên một bản riêng)
+  const approve = { admin: 200, duong: 200, hung: 200, thanhb: 403, tuan: 403 };
+  for (const who of ROLES) {
+    const r = await api('POST', '/daily-logs', { project_id: P['001'], log_date: day(), shift: 'CA2', work_summary: 'MA-TRAN duyet ' + who }, 'thanhb');
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal((await api('POST', `/daily-logs/${r.body.id}/submit`, null, 'thanhb')).status, 200);
+    check('duyệt báo cáo ngày', who, (await api('POST', `/daily-logs/${r.body.id}/approve`, null, who)).status, approve[who]);
+  }
+
+  // 6) Xóa (vào Thùng rác) — mặc định chỉ Admin/Giám đốc có quyền Xóa
+  const del = { admin: 200, duong: 200, hung: 403, thanhb: 403, tuan: 403 };
+  for (const who of ROLES) {
+    const r = await api('POST', '/daily-logs', { project_id: P['001'], log_date: day(), shift: 'CA3', work_summary: 'MA-TRAN xoa ' + who }, 'thanhb');
+    await api('POST', `/daily-logs/${r.body.id}/submit`, null, 'thanhb'); // đã gửi → mọi vai trò trong công trình đều thấy
+    check('xóa báo cáo ngày', who, (await api('DELETE', `/daily-logs/${r.body.id}`, { reason: 'thử ma trận' }, who)).status, del[who]);
+  }
+
+  // 7) Tạo công trình mới (chỉ Admin/Giám đốc)
+  const newProject = { admin: 201, duong: 201, hung: 403, thanhb: 403, tuan: 403 };
+  for (const who of ROLES) {
+    const code = 'MT' + who.toUpperCase();
+    check('tạo công trình', who, (await api('POST', '/projects', { name: 'Ma trận ' + who, contract_no: code }, who)).status, newProject[who]);
+  }
+
+  assert.deepEqual(out, [], 'Sai quyền:\n' + out.join('\n'));
+  assert.ok(Object.keys(created).length === 4, 'đủ 4 vai trò lập được báo cáo ngày');
+});
