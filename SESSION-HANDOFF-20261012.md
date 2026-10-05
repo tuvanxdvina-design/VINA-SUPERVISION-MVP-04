@@ -1,6 +1,43 @@
 # Bàn giao phiên làm việc — đọc tệp này trước, không cần đọc lại lịch sử hội thoại cũ
 
-Ghi lúc: 2026-10-12, cập nhật lần cuối 01/10 (build hiện tại **2026-10-14.5** — thêm "Mở lại" cho báo cáo ngày đã duyệt/khóa, xem CAP-NHAT Đợt 27). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại trước (tốn token).
+Ghi lúc: 2026-10-12, cập nhật lần cuối **05/10/2026** (build hiện tại **2026-10-14.12**, đã chạy trên máy người dùng và người dùng đã thử đạt). Mục đích: phiên Claude Code mới đọc tệp này là đủ hiểu trạng thái, đỡ phải đọc lại toàn bộ hội thoại. **Đọc mục "Phiên 04–05/10" ngay dưới đây trước** — các mục phía dưới là lịch sử cũ hơn, một số câu "chưa kiểm thử/không chạy được lệnh" ở đó đã lỗi thời.
+
+## ★ Phiên 04–05/10 (build 2026-10-14.9 → .12) — ĐỌC TRƯỚC
+
+### Cách làm việc mới (tiết kiệm token)
+- Repo đã có trên GitHub: `tuvanxdvina-design/VINA-SUPERVISION-MVP-04`. Máy người dùng (`D:\Setup\QLGS-HeThong\ChatGPT\VINA-SUPERVISION-MVP-04`) đã nối `origin`.
+- Quy trình: mỗi việc 1 nhánh `claude/...` → PR → **GitHub Actions tự chạy kiểm thử** (`.github/workflows/kiem-thu.yml`: cú pháp + bộ tách + hồi quy + giao diện, ~1–2 phút) → người dùng bấm Merge → trên máy: `git pull origin main` → `.\run.bat` → Ctrl+F5 ở **http://localhost:3003/**.
+- Trước khi pull, luôn cho người dùng chạy `git remote -v` + `git status --short`; `status` có tệp → dừng, hỏi trước (tránh ghi đè việc Codex/người dùng tự sửa).
+- Chạy kiểm thử trên Linux/đám mây (không cần Docker/Chrome của máy): PostgreSQL 16 ở cổng 5434 (user/pass `postgres/postgres`), đặt `JWT_SECRET` (repo không có `backend/.env`), `TEST_DB_URL`/`UI_TEST_DB_URL` (tên CSDL bắt đầu `vina_regr`/`vina_ui`), `CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome` cho bộ giao diện. Lệnh: `cd backend && node --test tests/regression.test.js` và `node --test --test-reporter=spec tests/ui/all.test.js`.
+- Phiên đám mây **không** chạy được lệnh trên máy Windows của người dùng; muốn Claude chạy hộ thì người dùng mở `claude remote-control` trong thư mục dự án.
+
+### Đã xong và người dùng đã thử đạt (CAP-NHAT Đợt 31–34)
+1. **Lỗi phân quyền máy chủ**: sửa công trình / tệp hợp đồng / bảng tiến độ (`routes/projectRoutes.js`) nay xét quyền Duyệt **tại công trình** (`requirePermission('APPROVE')`), khớp `canEditProject(pid)`.
+2. Ẩn "+ Thêm công trình" và "Quản lý Gói thầu" với người không phải Admin/Giám đốc; trạng thái hiện chữ Việt (`STATUS_LABELS` trong `js/01-core.js`).
+3. **Điện thoại**: bảng danh sách → thẻ (`js/16-the-dien-thoai.js` + CSS `table.mcards`, ≤600px; thêm khung bảng mới vào `MCARD_CONTAINERS`); số liệu Tổng quan 2×2; bóng mờ báo còn mục ở thanh điều hướng dưới; thanh nút Lưu bám đáy hộp thoại.
+4. **TVGS trưởng "Duyệt tất cả (N)"** (`logBulkLead`): Xác nhận nháp của mình + Duyệt bản tổ viên đã gửi.
+5. **Nháp báo cáo ngày là của riêng người lập** (quy tắc mới, xem CLAUDE.md "Domain rules"): chỉ người lập thấy/sửa/gửi; TVGS trưởng thấy từ khi đã gửi; Admin/Giám đốc thấy hết. Áp cả máy chủ (404 với nháp người khác) lẫn giao diện (`canSeeLog`). Đồng bộ dọn bản máy chủ không còn trả về — **chỉ dọn bản đã có mã từ trước khi tải và không còn thay đổi chờ** (từng có lỗi chạy đua xóa nhầm bản vừa lưu, đã sửa ở .12, ca GD-25).
+6. **Cảnh báo "thiếu báo cáo ngày"** chỉ tính bản đã gửi trở đi — ngày chỉ có nháp vẫn là thiếu.
+7. Kiểm thử: hồi quy **46/46**, giao diện **25/25**; ca giao diện cũ lỗi thời đã sửa; thêm `CHROME_PATH` cho Linux.
+8. Đã kiểm, **không phải lỗi**: "báo cáo GS viên biến mất sau khi Gửi duyệt" (Đợt 30) — không tái hiện được (vẫn thấy sau gửi, sau tải lại, trên máy mới).
+
+### Quyết định của người dùng (04–05/10) — không bàn lại
+- Nháp chỉ người lập thấy/sửa; trưởng nhóm không duyệt hộ nháp chưa gửi.
+- Admin/Giám đốc vẫn thấy nháp.
+- Ngày chỉ có nháp = thiếu báo cáo.
+- Điện thoại dùng dạng thẻ; PC giữ dạng bảng.
+
+### Đề xuất đã được duyệt — đang làm (05/10), xem CAP-NHAT Đợt 35 khi xong
+1. Ô "Gói thầu" trong văn bản chất lượng chọn từ danh sách gói đã khai báo (tránh gõ tay lệch tên).
+2. Nhãn đầy đủ: "Đơn vị tc" → "Đơn vị thi công", "Cbkt" → "Cán bộ kỹ thuật (người)".
+3. Gói thầu có nhà thầu nhưng chưa có hạng mục: vẫn cho chọn nhà thầu từ danh sách (hiện lùi về ô gõ tay).
+4. Bộ tình huống kiểm thử đủ mọi vai trò (Admin, Giám đốc, TVGS trưởng, GS viên, người không được phân công).
+
+### Còn mở (chưa ai yêu cầu làm)
+- `backend/.env` của MVP-04 có thể dùng chung `JWT_SECRET` với MVP-03 — nên đổi khóa riêng.
+- "Ẩn hẳn mục theo vai trò ở Chi tiết công trình" — vẫn chưa có câu trả lời cụ thể "ẩn mục nào".
+- CSDL thử (bộ kiểm thử) không có bảng `schema_migrations` nên app hiện dải đỏ "CSDL chưa cập nhật" trong lúc test — chỉ ảnh hưởng môi trường thử.
+
 
 ## ⚠️ Đổi tên lớn vừa làm: "Nhật ký" → "Báo cáo ngày" (01/10, Đợt 24)
 Toàn bộ giao diện/thông báo đã đổi "Nhật ký"/"Nhật ký hiện trường" → "Báo cáo ngày". **Cơ chế/dữ liệu KHÔNG đổi** (vẫn bảng `daily_logs`, vẫn hàm `openLog`/`canEditLog`/`daily_logs` API, vẫn quy trình Nháp→Chờ duyệt→Duyệt→Khóa) — quyết định có chủ đích để không phá phần Xác nhận tự duyệt + Gói thầu vừa xong. Loại báo cáo tổng hợp "DAILY" trong mục Báo cáo đã đổi nhãn thành "Tổng hợp ngày" để tránh trùng tên. **Nếu đọc code thấy "nhật ký"/"log" ở tên hàm/biến/bảng — đó là tên nội bộ cũ, cố ý giữ nguyên, không phải sót.** Riêng `DOC_TYPES` trong `js/06-ho-so.js`/`documentService.js` có mã `'NK':'Nhật ký'` — đây là MỘT LOẠI HỒ SƠ PHÁP LÝ KHÁC (tài liệu lưu trữ dạng sổ nhật ký cũ), không liên quan tính năng vừa đổi tên, cố tình giữ nguyên.
